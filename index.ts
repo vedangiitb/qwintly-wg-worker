@@ -1,216 +1,220 @@
-// @ts-nocheck
+import "dotenv/config";
+
+import { Logging } from "@google-cloud/logging";
 import { PubSub } from "@google-cloud/pubsub";
-import WebSocket from "ws";
-import { spawn } from "child_process";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { JobsClient } from "@google-cloud/run";
+import { Storage } from "@google-cloud/storage";
+import express from "express";
+import WebSocket, { WebSocketServer } from "ws";
+import { spawnLocalBuilder } from "./spawnLocalBuilder.js";
 
-// ENV
-const subscriptionName = process.env.PUBSUB_SUBSCRIPTION || "website-generation-sub";
-const GITHUB_MCP_WS_URL = process.env.GITHUB_MCP_WS_URL || "ws://localhost:9000/mcp";
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const PORT = process.env.PORT || 8080;
+const JOB_NAME = process.env.CLOUD_RUN_JOB_NAME!;
+const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT!;
+const REGION = process.env.CLOUD_RUN_REGION!;
+const jobResourceName = `projects/${PROJECT_ID}/locations/${REGION}/jobs/${JOB_NAME}`;
+console.log("PROJECT_ID =", PROJECT_ID);
 
-// Connect to WebSocket server
-function connectWebSocket(url: string): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    ws.on("open", () => resolve(ws));
-    ws.on("error", reject);
+// Set up clients
+const pubsub = new PubSub({
+  projectId: PROJECT_ID,
+});
+
+const logging = new Logging({ projectId: PROJECT_ID });
+const jobsClient = new JobsClient({ projectId: PROJECT_ID });
+const storage = new Storage({ projectId: PROJECT_ID });
+
+// Track sessions → WebSocket clients
+const sessionClients = new Map<string, Set<WebSocket>>();
+
+// Track active jobs → executionId
+const activeJobs = new Map<
+  string,
+  { executionId: string; lastTimestamp: string }
+>();
+
+// Create Express server + WebSocket server
+const app = express();
+const server = app.listen(PORT, () => console.log(`Worker running on ${PORT}`));
+
+const wss = new WebSocketServer({ server });
+
+// ------------------------------------------
+// 1. UI connects via WebSocket
+// ws://worker-host/ws/<sessionId>
+// ------------------------------------------
+wss.on("connection", (ws, req) => {
+  const url = new URL(req.url!, `http://${req.headers.host}`);
+  const sessionId = url.pathname.replace("/ws/", "");
+
+  if (!sessionId) {
+    ws.close();
+    return;
+  }
+
+  if (!sessionClients.has(sessionId)) {
+    sessionClients.set(sessionId, new Set());
+  }
+  sessionClients.get(sessionId)!.add(ws);
+
+  console.log(`UI connected for session ${sessionId}`);
+
+  ws.on("close", () => {
+    sessionClients.get(sessionId)?.delete(ws);
   });
-}
+});
 
-// Send MCP request + wait for response
-function wsRequest(ws: WebSocket, payload: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const id = payload.id;
-    ws.send(JSON.stringify(payload));
+// Helper: send log line to all UI clients for that session
+function broadcastLog(sessionId: string, message: string) {
+  const clients = sessionClients.get(sessionId);
+  if (!clients) return;
 
-    ws.on("message", (msg) => {
-      try {
-        const parsed = JSON.parse(msg.toString());
-        if (parsed.id === id) resolve(parsed);
-      } catch (err) {
-        reject(err);
-      }
-    });
-  });
-}
-
-// Route tool calls to correct MCP server
-async function routeMCPCall(toolName: string, args: any, builderWS: WebSocket, githubWS: WebSocket) {
-  let ws = null;
-
-  if (toolName.startsWith("builder.")) ws = builderWS;
-  else if (toolName.startsWith("github.")) ws = githubWS;
-  else throw new Error("Unknown tool namespace: " + toolName);
-
-  const cleanToolName = toolName.replace(/^builder\.|^github\./, "");
-
-  const result = await wsRequest(ws, {
-    id: "mcp-" + Math.random(),
-    method: "mcp.call",
-    params: {
-      tool: cleanToolName,
-      args,
-    },
-  });
-
-  return result;
-}
-
-// Process LLM streaming tool execution
-async function runLLMWorkflow(payload: any, builderWS: WebSocket, githubWS: WebSocket) {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-pro", // agentic model
-      // @ts-ignore MCP is not yet in official typings
-    tools: {
-      mcp: {
-        servers: [
-          { name: "builder", url: "ws://localhost:7777" },
-          { name: "github", url: GITHUB_MCP_WS_URL }
-        ],
-      },
-    } as any,
-  });
-
-  // Start LLM call with structured arguments
-  const session = await model.startChat({
-    enableMcp: true,
-    history: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `
-You are an autonomous agent that must generate a complete website project.
-
-USER REQUEST:
-${JSON.stringify(payload, null, 2)}
-
-TOOLS AVAILABLE:
-- builder.copy_template(name)
-- builder.write_file(path, content)
-- builder.read_file(path)
-- builder.apply_patch(path, diff)
-- builder.mkdir(path)
-- github.create_repo(name)
-- github.write_file(path, content)
-- github.commit(message)
-- github.push(branch)
-
-WORKFLOW:
-1. Copy base template using builder.copy_template("nextjs-default")
-2. Modify files using builder.write_file or builder.apply_patch
-3. Prepare project for GitHub
-4. Use github.create_repo
-5. Write project files via github.write_file
-6. Commit & push
-7. Return final GitHub repo URL
-
-You MUST use MCP tool calls.  
-Do NOT output anything except valid tool calls or final text message.
-`
-          }
-        ]
-      }
-    ]
-  });
-
-  // Now loop until LLM says job is done
-  while (true) {
-    const llmResponse = await session.sendMessage("continue");
-
-    const part = llmResponse.response?.candidates?.[0]?.content?.parts?.[0];
-
-    console.log("🤖 LLM Part:", JSON.stringify(part, null, 2));
-
-    // If LLM returned plain text → workflow is done
-    if (part.text) {
-      console.log("🎉 FINAL LLM OUTPUT:", part.text);
-      return part.text;
-    }
-
-    // If LLM made a MCP tool call:
-    if (part.functionCall) {
-      const { name, args } = part.functionCall;
-
-      console.log("🛠 LLM calling tool:", name, args);
-
-      const result = await routeMCPCall(name, args, builderWS, githubWS);
-
-      console.log("📥 Tool result:", result);
-
-      // Feed result back to LLM
-      await session.sendMessage({
-        role: "tool",
-        parts: [
-          {
-            functionResponse: {
-              name,
-              response: result.result
-            }
-          }
-        ]
-      });
+  for (const ws of clients) {
+    if (ws.readyState === WebSocket.OPEN) {
+      console.log("Broadcasting log:", message);
+      ws.send(message);
     }
   }
 }
 
-// Main worker
-async function startWorker() {
-  console.log("🚀 Worker started");
-  const pubsub = new PubSub();
-  const subscription = pubsub.subscription(subscriptionName);
+// ------------------------------------------
+// 2. Start Cloud Run Job when Pub/Sub message arrives
+// ------------------------------------------
+
+async function startBuilderJob(sessionId: string) {
+  const jobParams = {
+    SESSION_ID: sessionId,
+    REQUEST_TYPE: "new",
+    GOOGLE_GENAI_API_KEY: process.env.GEMINI_API_KEY,
+  };
+
+  const request = {
+    name: jobResourceName,
+    executionSuffix: sessionId,
+    override: {
+      containers: [
+        {
+          env: Object.entries(jobParams).map(([name, value]) => ({
+            name,
+            value,
+          })),
+        },
+      ],
+    },
+  };
+
+  await jobsClient.runJob(request);
+
+  // Start polling logs
+  pollLogs(sessionId);
+}
+
+// ------------------------------------------
+// 3. Poll Cloud Logging for logs of that specific Job execution
+// ------------------------------------------
+async function pollLogs(sessionId: string) {
+  const job = activeJobs.get(sessionId);
+  if (!job) return;
+
+  const { executionId } = job;
+
+  const filter = `
+    resource.type="cloud_run_job"
+    resource.labels.execution_id="${executionId}"
+  `;
+
+  async function loop() {
+    const job = activeJobs.get(sessionId);
+    if (!job) return; // job completed or removed
+
+    const entries = await logging.getEntries({
+      filter,
+      orderBy: "timestamp asc",
+    });
+
+    const logs = entries[0];
+
+    for (const entry of logs) {
+      const entryTimestamp = entry.metadata.timestamp;
+
+      // Only send new logs
+      if (entryTimestamp && entryTimestamp > job.lastTimestamp) {
+        const message = entry.data;
+        job.lastTimestamp = entryTimestamp.toString();
+        broadcastLog(sessionId, message);
+      }
+    }
+
+    // Keep polling until job ends
+    setTimeout(loop, 1000);
+  }
+
+  loop();
+}
+
+// ------------------------------------------
+// 4. Pub/Sub listener
+// ------------------------------------------
+// The GCS bucket where the request payloads are stored. Allow override via env var.
+const BUCKET_NAME = process.env.BUCKET_NAME || "qwintly-builder-requests";
+
+async function startPubSubListener() {
+  console.log("PubSub client endpoint:", pubsub.options);
+  console.log("PubSub subscription:", process.env.PUBSUB_SUBSCRIPTION);
+  console.log("PubSub topic:", process.env.PUBSUB_TOPIC);
+  const subscription = pubsub.subscription(
+    process.env.PUBSUB_SUBSCRIPTION || "website-generation-sub"
+  );
 
   subscription.on("message", async (msg) => {
-    const payload = JSON.parse(msg.data.toString());
-    console.log("💬 Received job:", payload);
-
     try {
-      // --------------------------------------
-      // ⚙️ Start Builder Container
-      // --------------------------------------
-      console.log("🚀 Starting builder container...");
-      const builderContainer = spawn("docker", [
-        "run",
-        "--rm",
-        "-p",
-        "7777:7777",
-        "-e",
-        `JOB_PAYLOAD=${JSON.stringify(payload)}`,
-        "builder-container",
-      ]);
+      const payload = JSON.parse(msg.data.toString());
+      const { chatId: sessionId } = payload;
 
-      builderContainer.stdout.on("data", (d) =>
-        console.log("🟦 [builder]", d.toString())
-      );
-      builderContainer.stderr.on("data", (d) =>
-        console.error("🟥 [builder-error]", d.toString())
-      );
+      console.log("Received job request:", payload);
 
-      console.log("⏳ Waiting for builder MCP...");
-      await new Promise((r) => setTimeout(r, 2500));
+      // Persist the payload to GCS so the Cloud Run job can fetch it from there.
+      if (!sessionId) {
+        throw new Error("Missing sessionId in payload");
+      }
 
-      const builderWS = await connectWebSocket("ws://localhost:7777");
-      console.log("🟢 Connected → Builder MCP");
+      const filePath = `requests/${sessionId}.json`;
+      const bucket = storage.bucket(BUCKET_NAME);
+      const file = bucket.file(filePath);
 
-      const githubWS = await connectWebSocket(GITHUB_MCP_WS_URL);
-      console.log("🟢 Connected → GitHub MCP");
+      console.log(`Saving request payload to gs://${BUCKET_NAME}/${filePath}`);
 
-      // --------------------------------------
-      // 🤖 Start LLM Orchestration
-      // --------------------------------------
-      const finalOutput = await runLLMWorkflow(payload, builderWS, githubWS);
+      await file.save(JSON.stringify(payload), {
+        contentType: "application/json",
+      });
 
-      console.log("🎉 BUILD COMPLETE →", finalOutput);
+      console.log("Saved payload to GCS successfully");
 
-      builderWS.close();
-      githubWS.close();
+      if (process.env.LOCAL_MODE === "true") {
+        console.log("LOCAL MODE: Spawning builder job locally...");
+        return spawnLocalBuilder(sessionId);
+      } else {
+        await startBuilderJob(sessionId);
+      }
+
       msg.ack();
     } catch (err) {
-      console.error("❌ Worker error:", err);
+      console.error("PubSub error:", err);
       msg.nack();
     }
   });
+
+  console.log("Creating subscription client...");
+
+  subscription.on("error", (err) => {
+    console.error("SUBSCRIPTION ERROR:", err);
+  });
+
+  subscription.on("close", () => {
+    console.log("SUBSCRIPTION CLOSED");
+  });
+
+  console.log("Subscription listeners attached.");
 }
 
-startWorker();
+startPubSubListener();
