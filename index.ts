@@ -58,6 +58,7 @@ wss.on("connection", (ws, req) => {
   sessionClients.get(sessionId)!.add(ws);
 
   console.log(`UI connected for session ${sessionId}`);
+  broadCastLog(sessionId, `UI connected for session ${sessionId}`);
 
   ws.on("close", () => {
     sessionClients.get(sessionId)?.delete(ws);
@@ -77,6 +78,18 @@ function broadcastLog(sessionId: string, message: string) {
   }
 }
 
+
+// Alias available for other modules or naming preference
+export function broadCastLog(sessionId: string, message: string) {
+  broadcastLog(sessionId, message);
+}
+
+// Broadcast a message to all connected sessions
+function broadcastToAll(message: string) {
+  for (const sessionId of sessionClients.keys()) {
+    broadcastLog(sessionId, message);
+  }
+}
 // ------------------------------------------
 // 2. Start Cloud Run Job when Pub/Sub message arrives
 // ------------------------------------------
@@ -103,7 +116,9 @@ async function startBuilderJob(sessionId: string) {
     },
   };
 
+  broadCastLog(sessionId, `Starting Cloud Run Job for session ${sessionId}`);
   await jobsClient.runJob(request);
+  broadCastLog(sessionId, `Cloud Run Job started for session ${sessionId}`);
 
   // Start polling logs
   pollLogs(sessionId);
@@ -141,7 +156,7 @@ async function pollLogs(sessionId: string) {
       if (entryTimestamp && entryTimestamp > job.lastTimestamp) {
         const message = entry.data;
         job.lastTimestamp = entryTimestamp.toString();
-        broadcastLog(sessionId, message);
+        broadCastLog(sessionId, message);
       }
     }
 
@@ -172,6 +187,7 @@ async function startPubSubListener() {
       const { chatId: sessionId } = payload;
 
       console.log("Received job request:", payload);
+      broadCastLog(sessionId, `Received job request: ${JSON.stringify(payload)}`);
 
       // Persist the payload to GCS so the Cloud Run job can fetch it from there.
       if (!sessionId) {
@@ -183,23 +199,32 @@ async function startPubSubListener() {
       const file = bucket.file(filePath);
 
       console.log(`Saving request payload to gs://${BUCKET_NAME}/${filePath}`);
+      broadCastLog(sessionId, `Saving request payload to gs://${BUCKET_NAME}/${filePath}`);
 
       await file.save(JSON.stringify(payload), {
         contentType: "application/json",
       });
 
       console.log("Saved payload to GCS successfully");
+      broadCastLog(sessionId, "Saved payload to GCS successfully");
 
       if (process.env.LOCAL_MODE === "true") {
         console.log("LOCAL MODE: Spawning builder job locally...");
-        return spawnLocalBuilder(sessionId);
+        broadCastLog(sessionId, "LOCAL MODE: Spawning builder job locally...");
+        await spawnLocalBuilder(sessionId, broadCastLog);
       } else {
         await startBuilderJob(sessionId);
       }
-
+      console.log("Acking message");
+      broadCastLog(sessionId, "Acking message");
       msg.ack();
+      console.log("Message acked");
+      broadCastLog(sessionId, "Message acked");
     } catch (err) {
       console.error("PubSub error:", err);
+      if (err instanceof Error) {
+        broadCastLog((JSON.parse(msg.data.toString()).chatId as string) || "", `PubSub error: ${err.message}`);
+      }
       msg.nack();
     }
   });
@@ -208,10 +233,12 @@ async function startPubSubListener() {
 
   subscription.on("error", (err) => {
     console.error("SUBSCRIPTION ERROR:", err);
+    broadcastToAll(`SUBSCRIPTION ERROR: ${err}`);
   });
 
   subscription.on("close", () => {
     console.log("SUBSCRIPTION CLOSED");
+    broadcastToAll("SUBSCRIPTION CLOSED");
   });
 
   console.log("Subscription listeners attached.");

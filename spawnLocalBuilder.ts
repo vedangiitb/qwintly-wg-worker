@@ -5,10 +5,16 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-export function spawnLocalBuilder(sessionId: string) {
-  const builderEntry = path.resolve(__dirname, "../qwintly-builder/index.ts");
+export async function spawnLocalBuilder(
+  sessionId: string,
+  onLog?: (sessionId: string, message: string) => void
+) {
+  const builderEntry = path.resolve(
+    __dirname,
+    "../qwintly-builder/dist/index.js"
+  );
 
-  const child = spawn("npx", ["ts-node", builderEntry], {
+  const child = spawn("node", [builderEntry], {
     env: {
       ...process.env,
       SESSION_ID: sessionId,
@@ -19,14 +25,19 @@ export function spawnLocalBuilder(sessionId: string) {
   });
 
   child.stdout.on("data", (d) => {
-    console.log("BUILDER STDOUT:", d.toString());
+    const msg = d.toString();
+    console.log("BUILDER STDOUT:", msg);
+    if (onLog) onLog(sessionId, `BUILDER STDOUT: ${msg}`);
   });
 
   child.stderr.on("data", (d) => {
-    console.log("BUILDER STDERR:", d.toString());
+    const msg = d.toString();
+    console.log("BUILDER STDERR:", msg);
+    if (onLog) onLog(sessionId, `BUILDER STDERR: ${msg}`);
   });
 
   child.on("exit", (code) => {
     console.log("Builder exited with code", code);
+    if (onLog) onLog(sessionId, `Builder exited with code ${code}`);
   });
 }
