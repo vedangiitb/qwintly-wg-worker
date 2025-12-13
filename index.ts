@@ -95,18 +95,18 @@ async function startBuilderJob(sessionId: string) {
   const jobParams = {
     SESSION_ID: sessionId,
     REQUEST_TYPE: "new",
-    GOOGLE_GENAI_API_KEY: process.env.GEMINI_API_KEY,
+    GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY,
   };
 
   const request = {
     name: jobResourceName,
     executionSuffix: sessionId,
-    override: {
-      containers: [
+    overrides: {
+      containerOverrides: [
         {
           env: Object.entries(jobParams).map(([name, value]) => ({
             name,
-            value,
+            value: String(value),
           })),
         },
       ],
@@ -114,7 +114,14 @@ async function startBuilderJob(sessionId: string) {
   };
 
   broadCastLog(sessionId, `Starting Cloud Run Job for session ${sessionId}`);
-  await jobsClient.runJob(request);
+  const [execution] = await jobsClient.runJob(request);
+  const executionId = execution.name!.split("/").pop()!;
+
+  activeJobs.set(sessionId, {
+    executionId,
+    lastTimestamp: "",
+  });
+
   broadCastLog(sessionId, `Cloud Run Job started for session ${sessionId}`);
 
   // Start polling logs
@@ -131,9 +138,10 @@ async function pollLogs(sessionId: string) {
   const { executionId } = job;
 
   const filter = `
-    resource.type="cloud_run_job"
-    resource.labels.execution_id="${executionId}"
-  `;
+resource.type="cloud_run_job"
+resource.labels.job_name="${JOB_NAME}"
+resource.labels.execution_id="${executionId}"
+`;
 
   async function loop() {
     const job = activeJobs.get(sessionId);
@@ -151,7 +159,10 @@ async function pollLogs(sessionId: string) {
 
       // Only send new logs
       if (entryTimestamp && entryTimestamp > job.lastTimestamp) {
-        const message = entry.data;
+        const message =
+          typeof entry.data === "string"
+            ? entry.data
+            : JSON.stringify(entry.data);
         job.lastTimestamp = entryTimestamp.toString();
         broadCastLog(sessionId, message);
       }
