@@ -13,7 +13,6 @@ const JOB_NAME = process.env.CLOUD_RUN_JOB_NAME!;
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT!;
 const REGION = process.env.CLOUD_RUN_REGION!;
 const jobResourceName = `projects/${PROJECT_ID}/locations/${REGION}/jobs/${JOB_NAME}`;
-console.log("PROJECT_ID =", PROJECT_ID);
 
 // Set up clients
 const pubsub = new PubSub({
@@ -57,7 +56,6 @@ wss.on("connection", (ws, req) => {
   }
   sessionClients.get(sessionId)!.add(ws);
 
-  console.log(`UI connected for session ${sessionId}`);
   broadCastLog(sessionId, `UI connected for session ${sessionId}`);
 
   ws.on("close", () => {
@@ -77,7 +75,6 @@ function broadcastLog(sessionId: string, message: string) {
     }
   }
 }
-
 
 // Alias available for other modules or naming preference
 export function broadCastLog(sessionId: string, message: string) {
@@ -174,9 +171,6 @@ async function pollLogs(sessionId: string) {
 const BUCKET_NAME = process.env.BUCKET_NAME || "qwintly-builder-requests";
 
 async function startPubSubListener() {
-  console.log("PubSub client endpoint:", pubsub.options);
-  console.log("PubSub subscription:", process.env.PUBSUB_SUBSCRIPTION);
-  console.log("PubSub topic:", process.env.PUBSUB_TOPIC);
   const subscription = pubsub.subscription(
     process.env.PUBSUB_SUBSCRIPTION || "website-generation-sub"
   );
@@ -187,7 +181,10 @@ async function startPubSubListener() {
       const { chatId: sessionId } = payload;
 
       console.log("Received job request:", payload);
-      broadCastLog(sessionId, `Received job request: ${JSON.stringify(payload)}`);
+      broadCastLog(
+        sessionId,
+        `Received job request: ${JSON.stringify(payload)}`
+      );
 
       // Persist the payload to GCS so the Cloud Run job can fetch it from there.
       if (!sessionId) {
@@ -198,38 +195,37 @@ async function startPubSubListener() {
       const bucket = storage.bucket(BUCKET_NAME);
       const file = bucket.file(filePath);
 
-      console.log(`Saving request payload to gs://${BUCKET_NAME}/${filePath}`);
-      broadCastLog(sessionId, `Saving request payload to gs://${BUCKET_NAME}/${filePath}`);
+      broadCastLog(
+        sessionId,
+        `Saving request payload to gs://${BUCKET_NAME}/${filePath}`
+      );
 
       await file.save(JSON.stringify(payload), {
         contentType: "application/json",
       });
 
-      console.log("Saved payload to GCS successfully");
       broadCastLog(sessionId, "Saved payload to GCS successfully");
 
       if (process.env.LOCAL_MODE === "true") {
-        console.log("LOCAL MODE: Spawning builder job locally...");
         broadCastLog(sessionId, "LOCAL MODE: Spawning builder job locally...");
         await spawnLocalBuilder(sessionId, broadCastLog);
       } else {
         await startBuilderJob(sessionId);
       }
-      console.log("Acking message");
       broadCastLog(sessionId, "Acking message");
       msg.ack();
-      console.log("Message acked");
       broadCastLog(sessionId, "Message acked");
     } catch (err) {
       console.error("PubSub error:", err);
       if (err instanceof Error) {
-        broadCastLog((JSON.parse(msg.data.toString()).chatId as string) || "", `PubSub error: ${err.message}`);
+        broadCastLog(
+          (JSON.parse(msg.data.toString()).chatId as string) || "",
+          `PubSub error: ${err.message}`
+        );
       }
       msg.nack();
     }
   });
-
-  console.log("Creating subscription client...");
 
   subscription.on("error", (err) => {
     console.error("SUBSCRIPTION ERROR:", err);
@@ -240,8 +236,6 @@ async function startPubSubListener() {
     console.log("SUBSCRIPTION CLOSED");
     broadcastToAll("SUBSCRIPTION CLOSED");
   });
-
-  console.log("Subscription listeners attached.");
 }
 
 startPubSubListener();

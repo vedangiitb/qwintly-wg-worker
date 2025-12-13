@@ -26,18 +26,15 @@ export async function spawnLocalBuilder(
 
   child.stdout.on("data", (d) => {
     const msg = d.toString();
-    console.log("BUILDER STDOUT:", msg);
     if (onLog) onLog(sessionId, `BUILDER STDOUT: ${msg}`);
   });
 
   child.stderr.on("data", (d) => {
     const msg = d.toString();
-    console.log("BUILDER STDERR:", msg);
     if (onLog) onLog(sessionId, `BUILDER STDERR: ${msg}`);
   });
 
   child.on("exit", (code) => {
-    console.log("Builder exited with code", code);
     if (onLog) onLog(sessionId, `Builder exited with code ${code}`);
   });
 }
