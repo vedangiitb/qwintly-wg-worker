@@ -64,7 +64,7 @@ wss.on("connection", (ws, req) => {
 });
 
 // Helper: send log line to all UI clients for that session
-function broadcastLog(sessionId: string, message: string) {
+function sendLog(sessionId: string, message: string) {
   const clients = sessionClients.get(sessionId);
   if (!clients) return;
 
@@ -78,13 +78,14 @@ function broadcastLog(sessionId: string, message: string) {
 
 // Alias available for other modules or naming preference
 export function broadCastLog(sessionId: string, message: string) {
-  broadcastLog(sessionId, message);
+  console.log("Broadcasting log for session:", sessionId, message);
+  sendLog(sessionId, message);
 }
 
 // Broadcast a message to all connected sessions
 function broadcastToAll(message: string) {
   for (const sessionId of sessionClients.keys()) {
-    broadcastLog(sessionId, message);
+    sendLog(sessionId, message);
   }
 }
 // ------------------------------------------
