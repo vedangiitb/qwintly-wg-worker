@@ -7,6 +7,7 @@ import { Storage } from "@google-cloud/storage";
 import express from "express";
 import WebSocket, { WebSocketServer } from "ws";
 import { spawnLocalBuilder } from "./spawnLocalBuilder.js";
+import { normalizeTimestamp } from "./utils/normalizeTimeStamp.js";
 
 const PORT = process.env.PORT || 8080;
 const JOB_NAME = process.env.CLOUD_RUN_JOB_NAME!;
@@ -56,7 +57,7 @@ wss.on("connection", (ws, req) => {
   }
   sessionClients.get(sessionId)!.add(ws);
 
-  broadCastLog(sessionId, `UI connected for session ${sessionId}`);
+  console.log(sessionId, `UI connected for session ${sessionId}`);
 
   ws.on("close", () => {
     sessionClients.get(sessionId)?.delete(ws);
@@ -114,16 +115,16 @@ async function startBuilderJob(sessionId: string) {
     },
   };
 
-  broadCastLog(sessionId, `Starting Cloud Run Job for session ${sessionId}`);
+  console.log(sessionId, `Starting Cloud Run Job for session ${sessionId}`);
   const [execution] = await jobsClient.runJob(request);
   const executionId = execution.name!.split("/").pop()!;
 
   activeJobs.set(sessionId, {
     executionId,
-    lastTimestamp: "",
+    lastTimestamp: new Date().toISOString(),
   });
 
-  broadCastLog(sessionId, `Cloud Run Job started for session ${sessionId}`);
+  console.log(sessionId, `Cloud Run Job started for session ${sessionId}`);
 
   // Start polling logs
   pollLogs(sessionId);
@@ -136,40 +137,57 @@ async function pollLogs(sessionId: string) {
   const job = activeJobs.get(sessionId);
   if (!job) return;
 
-  const { executionId } = job;
-
-  const filter = `
-resource.type="cloud_run_job"
-resource.labels.job_name="${JOB_NAME}"
-resource.labels.execution_id="${executionId}"
-`;
+  const TERMINAL_STATUSES = new Set(["SUCCESS", "ERROR", "FAILED"]);
 
   async function loop() {
     const job = activeJobs.get(sessionId);
-    if (!job) return; // job completed or removed
+    if (!job) return;
 
-    const entries = await logging.getEntries({
+    const filter = `
+resource.type="cloud_run_job"
+resource.labels.job_name="${JOB_NAME}"
+jsonPayload.type="STATUS"
+jsonPayload.sessionId="${sessionId}"
+timestamp > "${job.lastTimestamp}"
+`;
+
+    const [entries] = await logging.getEntries({
       filter,
       orderBy: "timestamp asc",
+      pageSize: 50,
     });
 
-    const logs = entries[0];
+    for (const entry of entries) {
+      const ts = entry.metadata.timestamp;
+      if (!ts) continue;
 
-    for (const entry of logs) {
-      const entryTimestamp = entry.metadata.timestamp;
+      const tsIso = normalizeTimestamp(ts);
 
-      // Only send new logs
-      if (entryTimestamp && entryTimestamp > job.lastTimestamp) {
-        const message =
-          typeof entry.data === "string"
-            ? entry.data
-            : JSON.stringify(entry.data);
-        job.lastTimestamp = entryTimestamp.toString();
-        broadCastLog(sessionId, message);
+      const payload = entry.data as {
+        sessionId?: string;
+        type?: string;
+        message?: string;
+      };
+
+      if (
+        payload?.type === "STATUS" &&
+        payload?.sessionId === sessionId &&
+        typeof payload?.message === "string"
+      ) {
+        broadCastLog(sessionId, payload.message);
+
+        // advance cursor
+        job.lastTimestamp = new Date(
+          new Date(tsIso).getTime() + 1
+        ).toISOString();
+
+        if (TERMINAL_STATUSES.has(payload.message)) {
+          activeJobs.delete(sessionId);
+          return;
+        }
       }
     }
 
-    // Keep polling until job ends
     setTimeout(loop, 1000);
   }
 
@@ -192,11 +210,9 @@ async function startPubSubListener() {
       const payload = JSON.parse(msg.data.toString());
       const { chatId: sessionId } = payload;
 
+      broadCastLog(sessionId, "Initializing session");
+
       console.log("Received job request:", payload);
-      broadCastLog(
-        sessionId,
-        `Received job request: ${JSON.stringify(payload)}`
-      );
 
       // Persist the payload to GCS so the Cloud Run job can fetch it from there.
       if (!sessionId) {
@@ -207,7 +223,7 @@ async function startPubSubListener() {
       const bucket = storage.bucket(BUCKET_NAME);
       const file = bucket.file(filePath);
 
-      broadCastLog(
+      console.log(
         sessionId,
         `Saving request payload to gs://${BUCKET_NAME}/${filePath}`
       );
@@ -216,17 +232,17 @@ async function startPubSubListener() {
         contentType: "application/json",
       });
 
-      broadCastLog(sessionId, "Saved payload to GCS successfully");
+      console.log(sessionId, "Saved payload to GCS successfully");
 
       if (process.env.LOCAL_MODE === "true") {
-        broadCastLog(sessionId, "LOCAL MODE: Spawning builder job locally...");
+        broadCastLog(sessionId, "LOCAL MODE: Spawning builder job locally");
         await spawnLocalBuilder(sessionId, broadCastLog);
       } else {
         await startBuilderJob(sessionId);
       }
-      broadCastLog(sessionId, "Acking message");
+      console.log(sessionId, "Acking message");
       msg.ack();
-      broadCastLog(sessionId, "Message acked");
+      console.log(sessionId, "Message acked");
     } catch (err) {
       console.error("PubSub error:", err);
       if (err instanceof Error) {
