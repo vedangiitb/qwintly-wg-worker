@@ -31,7 +31,7 @@ export async function startPubSubListener(ctx: WorkerContext) {
       const filePath = `requests/${sessionId}.json`;
       const bucket = ctx.requestBucket;
 
-      await savePayloadtoGCS(filePath, bucket, payload);
+      await savePayloadtoGCS(bucket, filePath, payload);
 
       console.log(sessionId, "Saved payload to GCS successfully");
 
