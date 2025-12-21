@@ -1,11 +1,9 @@
 import { PubSub } from "@google-cloud/pubsub";
 import { PROJECT_ID } from "../../config/env.js";
+import { startWorkerFlow } from "../../flow/worker.flow.js";
 import { savePayloadtoGCS } from "../../infra/gcs/savePayload.js";
-import { spawnLocalBuilder } from "../../spawnLocalBuilder.js";
 import { broadCastLog, broadcastToAll } from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
-import { runBuilderJob } from "../runJobs/runBuilderJob.js";
-import { runDeployerJob } from "../runJobs/runDeployerJob.js";
 
 const pubsub = new PubSub({
   projectId: PROJECT_ID,
@@ -35,12 +33,8 @@ export async function startPubSubListener(ctx: WorkerContext) {
 
       console.log(sessionId, "Saved payload to GCS successfully");
 
-      if (process.env.LOCAL_MODE === "true") {
-        await spawnLocalBuilder(sessionId, broadCastLog);
-      } else {
-        await runBuilderJob(ctx, sessionId);
-        await runDeployerJob(ctx, sessionId);
-      }
+      startWorkerFlow(ctx, sessionId);
+
       console.log(sessionId, "Acking message");
       msg.ack();
       console.log(sessionId, "Message acked");
