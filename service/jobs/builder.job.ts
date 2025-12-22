@@ -13,7 +13,7 @@ export async function runBuilderJob(ctx: WorkerContext, sessionId: string) {
     name: ctx.builderJobResource,
     overrides: {
       labels: {
-        sessionId,
+        sessiond_id: sessionId,
         pipeline: "builder",
       },
       containerOverrides: [
@@ -31,12 +31,10 @@ export async function runBuilderJob(ctx: WorkerContext, sessionId: string) {
     sessionId,
     `Starting Builder Cloud Run Job for session ${sessionId}`
   );
-  const [execution] = await jobsClient.runJob(request);
 
-  const executionId = execution.name!.split("/").pop()!;
+  const [operation] = await jobsClient.runJob(request);
 
   activeJobs.set(sessionId, {
-    executionId,
     lastTimestamp: new Date().toISOString(),
     jobName: ctx.builderJob,
   });
@@ -48,4 +46,6 @@ export async function runBuilderJob(ctx: WorkerContext, sessionId: string) {
 
   // Start polling logs
   pollLogs(sessionId);
+
+  await operation.promise();
 }

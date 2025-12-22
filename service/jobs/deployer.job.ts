@@ -26,12 +26,9 @@ export async function runDeployerJob(ctx: WorkerContext, sessionId: string) {
     sessionId,
     `Starting Deployer Cloud Run Job for session ${sessionId}`
   );
-  const [execution] = await jobsClient.runJob(request);
-
-  const executionId = execution.name!.split("/").pop()!;
+  const [operation] = await jobsClient.runJob(request);
 
   activeJobs.set(sessionId, {
-    executionId,
     lastTimestamp: new Date().toISOString(),
     jobName: ctx.deployerJob,
   });
@@ -43,4 +40,10 @@ export async function runDeployerJob(ctx: WorkerContext, sessionId: string) {
 
   // Start polling logs
   pollLogs(sessionId);
+
+  try {
+    await operation.promise();
+  } finally {
+    activeJobs.delete(sessionId);
+  }
 }

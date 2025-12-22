@@ -1,4 +1,3 @@
-import { waitForJob } from "../service/helpers/waitForJob.helper.js";
 import { runBuilderJob } from "../service/jobs/builder.job.js";
 import { runDeployerJob } from "../service/jobs/deployer.job.js";
 import { spawnLocalBuilder } from "../spawnLocalBuilder.js";
@@ -12,13 +11,9 @@ export async function startWorkerFlow(ctx: WorkerContext, sessionId: string) {
     try {
       await runBuilderJob(ctx, sessionId);
 
-      await waitForJob(ctx.builderJobResource, sessionId);
-
       broadCastLog(sessionId, "Builder completed. Starting deployer job");
 
       await runDeployerJob(ctx, sessionId);
-
-      await waitForJob(ctx.deployerJobResource, sessionId);
 
       broadCastLog(sessionId, "Deployment successful");
       broadCastLog(sessionId, "SUCCESS");

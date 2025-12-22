@@ -9,7 +9,7 @@ const logging = new Logging({ projectId: PROJECT_ID });
 // Track active jobs → executionId
 export const activeJobs = new Map<
   string,
-  { executionId: string; lastTimestamp: string; jobName: string }
+  { lastTimestamp: string; jobName: string }
 >();
 
 export async function pollLogs(sessionId: string) {
@@ -19,10 +19,11 @@ export async function pollLogs(sessionId: string) {
   const TERMINAL_STATUSES = new Set(["SUCCESS", "ERROR", "FAILED"]);
 
   async function loop() {
-    const job = activeJobs.get(sessionId);
-    if (!job) return;
+    try {
+      const job = activeJobs.get(sessionId);
+      if (!job) return;
 
-    const filter = `
+      const filter = `
 resource.type="cloud_run_job"
 resource.labels.job_name="${job.jobName}"
 jsonPayload.type="STATUS"
@@ -30,43 +31,45 @@ jsonPayload.sessionId="${sessionId}"
 timestamp > "${job.lastTimestamp}"
 `;
 
-    const [entries] = await logging.getEntries({
-      filter,
-      orderBy: "timestamp asc",
-      pageSize: 50,
-    });
+      const [entries] = await logging.getEntries({
+        filter,
+        orderBy: "timestamp asc",
+        pageSize: 50,
+      });
 
-    for (const entry of entries) {
-      const ts = entry.metadata.timestamp;
-      if (!ts) continue;
+      for (const entry of entries) {
+        const ts = entry.metadata.timestamp;
+        if (!ts) continue;
 
-      const tsIso = normalizeTimestamp(ts);
+        const tsIso = normalizeTimestamp(ts);
 
-      const payload = entry.data as {
-        sessionId?: string;
-        type?: string;
-        message?: string;
-      };
+        const payload = entry.data as {
+          sessionId?: string;
+          type?: string;
+          message?: string;
+        };
 
-      if (
-        payload?.type === "STATUS" &&
-        payload?.sessionId === sessionId &&
-        typeof payload?.message === "string"
-      ) {
-        broadCastLog(sessionId, payload.message);
+        if (
+          payload?.type === "STATUS" &&
+          payload?.sessionId === sessionId &&
+          typeof payload?.message === "string"
+        ) {
+          broadCastLog(sessionId, payload.message);
 
-        // advance cursor
-        job.lastTimestamp = new Date(
-          new Date(tsIso).getTime() + 1
-        ).toISOString();
+          // advance cursor
+          job.lastTimestamp = new Date(
+            new Date(tsIso).getTime() + 1
+          ).toISOString();
 
-        if (TERMINAL_STATUSES.has(payload.message)) {
-          activeJobs.delete(sessionId);
-          return;
+          if (TERMINAL_STATUSES.has(payload.message)) {
+            activeJobs.delete(sessionId);
+            return;
+          }
         }
       }
+    } catch (err) {
+      console.error("pollLogs error", err);
     }
-
     setTimeout(loop, 1000);
   }
 
