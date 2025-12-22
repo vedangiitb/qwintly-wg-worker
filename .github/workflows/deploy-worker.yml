@@ -31,7 +31,7 @@ jobs:
       - name: Build image
         run: |
           gcloud builds submit --tag $IMAGE .\
-          --service-account worker-sa@qwintly.iam.gserviceaccount.com \
+            --service-account worker-sa@qwintly.iam.gserviceaccount.com \
 
       - name: Deploy Cloud Run service
         run: |
