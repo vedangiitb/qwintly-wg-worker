@@ -13,6 +13,9 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+  
+  options:
+    logging: CLOUD_LOGGING_ONLY
 
     steps:
       - name: Checkout
@@ -30,12 +33,8 @@ jobs:
 
       - name: Build image
         run: |
-          gcloud builds submit \
-            --tag $IMAGE \
-            --service-account=github-deployer-sa@qwintly.iam.gserviceaccount.com \
-            --logging=cloud-logging-only \
-            .
-
+          gcloud builds submit --tag $IMAGE .\
+            --service-account worker-sa@qwintly.iam.gserviceaccount.com \
 
       - name: Deploy Cloud Run service
         run: |
