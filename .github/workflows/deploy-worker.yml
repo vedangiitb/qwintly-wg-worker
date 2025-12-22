@@ -1,0 +1,40 @@
+name: Deploy Worker Service
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  PROJECT_ID: qwintly
+  REGION: asia-south1
+  SERVICE_NAME: qwintly-wg-worker
+  IMAGE: gcr.io/qwintly/qwintly-wg-worker
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Build image
+        run: |
+          gcloud builds submit --tag $IMAGE .
+
+      - name: Deploy Cloud Run service
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --image $IMAGE \
+            --region $REGION \
+            --allow-unauthenticated \
