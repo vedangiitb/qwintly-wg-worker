@@ -14,6 +14,8 @@ export async function startPubSubListener(ctx: WorkerContext) {
     process.env.PUBSUB_SUBSCRIPTION || "website-generation-sub"
   );
 
+  console.log("Listening for messages...");
+
   subscription.on("message", async (msg) => {
     try {
       const payload = JSON.parse(msg.data.toString());
