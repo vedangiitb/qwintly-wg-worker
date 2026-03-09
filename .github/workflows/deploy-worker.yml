@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+  workflow_dispatch:
 
 env:
   SERVICE_NAME: qwintly-wg-worker
