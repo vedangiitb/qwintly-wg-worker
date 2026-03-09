@@ -1,22 +1,24 @@
 // Session/workspace/env context
 
 import {
-  BUCKET_NAME,
+  BUILDER_JOB_NAME,
   DEPLOYER_JOB_NAME,
-  JOB_NAME,
+  NEXT_PUBLIC_SUPABASE_URL,
   PORT,
   PROJECT_ID,
   REGION,
+  SUPABASE_SECRET_KEY,
 } from "../config/env.js";
 
 export function createWorkerContext() {
   return {
     port: PORT,
-    builderJob: JOB_NAME,
-    builderJobResource: `projects/${PROJECT_ID}/locations/${REGION}/jobs/${JOB_NAME}`,
+    builderJob: BUILDER_JOB_NAME,
+    builderJobResource: `projects/${PROJECT_ID}/locations/${REGION}/jobs/${BUILDER_JOB_NAME}`,
     deployerJob: DEPLOYER_JOB_NAME,
     deployerJobResource: `projects/${PROJECT_ID}/locations/${REGION}/jobs/${DEPLOYER_JOB_NAME}`,
-    requestBucket: BUCKET_NAME,
+    supabaseSecretKey: SUPABASE_SECRET_KEY,
+    supabaseUrl: NEXT_PUBLIC_SUPABASE_URL,
   };
 }
 

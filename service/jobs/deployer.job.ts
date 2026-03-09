@@ -1,5 +1,6 @@
 import { jobsClient } from "../../config/jobsClient.config.js";
-import { activeJobs, pollLogs } from "../../utils/logger.js";
+import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
+import { activeJobs, broadCastLog, pollLogs } from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 
 export async function runDeployerJob(ctx: WorkerContext, sessionId: string) {
@@ -22,21 +23,23 @@ export async function runDeployerJob(ctx: WorkerContext, sessionId: string) {
     },
   };
 
-  console.log(
-    sessionId,
-    `Starting Deployer Cloud Run Job for session ${sessionId}`
-  );
+  await broadCastLog(sessionId, "Starting Deployer Job", {
+    eventType: EVENT_TYPES.STEP_STARTED,
+    step: GEN_STEPS.DEPLOYING,
+    source: "worker",
+  });
   const [operation] = await jobsClient.runJob(request);
-
+  // TODO: Should we do this? Why is it used?
   activeJobs.set(sessionId, {
     lastTimestamp: new Date().toISOString(),
     jobName: ctx.deployerJob,
   });
 
-  console.log(
-    sessionId,
-    `Deployer Cloud Run Job started for session ${sessionId}`
-  );
+  await broadCastLog(sessionId, "Deployer Cloud Run Job started", {
+    eventType: EVENT_TYPES.STEP_STARTED,
+    step: GEN_STEPS.DEPLOYING,
+    source: "worker",
+  });
 
   // Start polling logs
   pollLogs(sessionId);

@@ -1,22 +1,80 @@
 import { Logging } from "@google-cloud/logging";
 import { PROJECT_ID } from "../config/env.js";
-import { sessionClients } from "../service/webSockets/websocket.service.js";
+import { statusService } from "../service/statusService/status.service.js";
+import { EVENT_TYPES, EventType, GenStep } from "../types/events.js";
 import { normalizeTimestamp } from "./normalizeTimeStamp.js";
-import WebSocket from "ws";
 
 const logging = new Logging({ projectId: PROJECT_ID });
 
-// Track active jobs → executionId
-export const activeJobs = new Map<
-  string,
-  { lastTimestamp: string; jobName: string }
->();
+type ActiveJobState = { lastTimestamp: string; jobName: string };
+type StatusMeta = { eventType?: EventType; step?: GenStep; source?: string };
+
+// Track active jobs -> execution state
+export const activeJobs = new Map<string, ActiveJobState>();
+
+const TERMINAL_STATUSES = new Set(["SUCCESS", "ERROR", "FAILED"]);
+
+const resolveStepFromJobName = (jobName: string): GenStep =>
+  jobName.toLowerCase().includes("deploy") ? "DEPLOYING" : "BUILDING";
+
+const inferEventType = (message: string): EventType => {
+  const normalized = message.trim().toLowerCase();
+
+  if (
+    normalized === "failed" ||
+    normalized === "error" ||
+    normalized.includes("failed") ||
+    normalized.includes("error")
+  ) {
+    return EVENT_TYPES.STEP_ERROR;
+  }
+
+  if (
+    normalized === "success" ||
+    normalized === "succeeded" ||
+    normalized.includes("completed") ||
+    normalized.includes("successful")
+  ) {
+    return "STEP_FINISHED";
+  }
+
+  return EVENT_TYPES.STEP_STARTED;
+};
+
+export async function broadCastLog(
+  sessionId: string,
+  message: string,
+  meta: StatusMeta = {},
+) {
+  console.log(`Log for SessionId: ${sessionId}`, message, meta);
+  try {
+    await statusService(
+      sessionId,
+      meta.eventType ?? inferEventType(message),
+      meta.step ?? "INITIATING",
+      message,
+      meta.source ?? "worker",
+    );
+  } catch (err) {
+    console.error("Failed to emit status event", {
+      sessionId,
+      message,
+      meta,
+      error: err,
+    });
+  }
+}
+
+export async function broadcastToAll(message: string, meta: StatusMeta = {}) {
+  const sessionIds = [...activeJobs.keys()];
+  await Promise.allSettled(
+    sessionIds.map((sessionId) => broadCastLog(sessionId, message, meta)),
+  );
+}
 
 export async function pollLogs(sessionId: string) {
   const job = activeJobs.get(sessionId);
   if (!job) return;
-
-  const TERMINAL_STATUSES = new Set(["SUCCESS", "ERROR", "FAILED"]);
 
   async function loop() {
     try {
@@ -54,11 +112,14 @@ timestamp > "${job.lastTimestamp}"
           payload?.sessionId === sessionId &&
           typeof payload?.message === "string"
         ) {
-          broadCastLog(sessionId, payload.message);
+          await broadCastLog(sessionId, payload.message, {
+            step: resolveStepFromJobName(job.jobName),
+            source: `cloud_run_job:${job.jobName}`,
+          });
 
           // advance cursor
           job.lastTimestamp = new Date(
-            new Date(tsIso).getTime() + 1
+            new Date(tsIso).getTime() + 1,
           ).toISOString();
 
           if (TERMINAL_STATUSES.has(payload.message)) {
@@ -74,29 +135,4 @@ timestamp > "${job.lastTimestamp}"
   }
 
   loop();
-}
-
-function sendLog(sessionId: string, message: string) {
-  const clients = sessionClients.get(sessionId);
-  if (!clients) return;
-
-  for (const ws of clients) {
-    if (ws.readyState === WebSocket.OPEN) {
-      console.log("Broadcasting log:", message);
-      ws.send(message);
-    }
-  }
-}
-
-// Alias available for other modules or naming preference
-export function broadCastLog(sessionId: string, message: string) {
-  console.log("Broadcasting log for session:", sessionId, message);
-  sendLog(sessionId, message);
-}
-
-// Broadcast a message to all connected sessions
-export function broadcastToAll(message: string) {
-  for (const sessionId of sessionClients.keys()) {
-    sendLog(sessionId, message);
-  }
 }
