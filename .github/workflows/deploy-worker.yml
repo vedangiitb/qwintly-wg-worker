@@ -26,6 +26,15 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY_QWINTLY_GIT }}
+      
+      - name: Debug secret
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY_QWINTLY_GIT }}" ]; then
+            echo "Secret is empty"
+            exit 1
+          else
+            echo "Secret loaded"
+          fi
 
       - name: Check auth
         run: gcloud auth list
