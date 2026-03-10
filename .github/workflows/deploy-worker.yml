@@ -36,13 +36,13 @@ jobs:
             echo "Secret loaded"
           fi
 
-      - name: Check auth
-        run: gcloud auth list
-
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ vars.GCP_PROJECT_ID_QWINTLY }}
+          project_id: '${{ vars.GCP_PROJECT_ID_QWINTLY }}'
+
+      - name: Check auth
+        run: gcloud auth list
 
       - name: Configure Docker
         run: |
