@@ -50,9 +50,10 @@ jobs:
         run: |
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE \
-            --region ${{ vars.REGION }} \
+            --region asia-south1 \
             --platform managed \
-            --service-account ${{ secrets.WORKER_SA_EMAIL }} \
+            --service-account *** \
+            --set-secrets cloudrun-secrets-config.env \
             --min-instances 1 \
             --max-instances 10 \
             --concurrency 1 \
