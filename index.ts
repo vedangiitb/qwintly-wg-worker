@@ -1,14 +1,16 @@
 import express from "express";
-import { PORT } from "./config/env.js";
 import { startWorker } from "./worker/worker.js";
 
 const app = express();
-export const server = app.listen(PORT, () =>
-  console.log(`Worker running on ${PORT}`)
-);
+app.use(express.json());
 
-async function main() {
-  startWorker();
-}
+const PORT = process.env.PORT || 8080;
 
-main();
+app.post("/", async (req, res) => {
+  await startWorker();
+  res.status(204).send();
+});
+
+app.listen(PORT, () => {
+  console.log(`Worker running on ${PORT}`);
+});
