@@ -46,18 +46,14 @@ jobs:
 
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
 
-      - name: Deploy Cloud Run
+      - name: Deploy to Cloud Run
         run: |
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE \
             --region asia-south1 \
             --platform managed \
-            --service-account *** \
-            --set-secrets \
-          NEXT_PUBLIC_SUPABASE_URL=supabase-url:latest,\
-          SUPABASE_SECRET_KEY=supabase-secret-key:latest,\
-          UPSTASH_REDIS_REST_TOKEN_GEN_EVENTS=upstash-redis-rest-token-gen-events:latest,\
-          UPSTASH_REDIS_REST_URL_GEN_EVENTS=upstash-redis-rest-url-gen-events:latest \
+            --service-account $SERVICE_ACCOUNT \
+            --set-secrets NEXT_PUBLIC_SUPABASE_URL=supabase-url:latest,SUPABASE_SECRET_KEY=supabase-secret-key:latest,UPSTASH_REDIS_REST_TOKEN_GEN_EVENTS=upstash-redis-rest-token-gen-events:latest,UPSTASH_REDIS_REST_URL_GEN_EVENTS=upstash-redis-rest-url-gen-events:latest \
             --min-instances 1 \
             --max-instances 10 \
             --concurrency 1 \
