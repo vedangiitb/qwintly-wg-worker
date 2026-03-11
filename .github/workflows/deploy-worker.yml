@@ -53,7 +53,7 @@ jobs:
             --region asia-south1 \
             --platform managed \
             --service-account *** \
-            --set-secrets cloudrun-secrets-config.env \
+            --set-secrets-file cloudrun-secrets-config.env \
             --min-instances 1 \
             --max-instances 10 \
             --concurrency 1 \
