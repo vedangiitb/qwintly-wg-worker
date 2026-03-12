@@ -52,7 +52,7 @@ jobs:
             --image $IMAGE \
             --region asia-south1 \
             --platform managed \
-            --service-account ${{ vars.WORKER_SERVICE_ACCOUNT }}
+            --service-account ${{ vars.WORKER_SA_EMAIL }}
             --set-secrets NEXT_PUBLIC_SUPABASE_URL=supabase-url:latest,SUPABASE_SECRET_KEY=supabase-secret-key:latest,UPSTASH_REDIS_REST_TOKEN_GEN_EVENTS=upstash-redis-rest-token-gen-events:latest,UPSTASH_REDIS_REST_URL_GEN_EVENTS=upstash-redis-rest-url-gen-events:latest \
             --min-instances 1 \
             --max-instances 10 \
