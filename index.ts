@@ -1,16 +1,16 @@
 import express from "express";
-import { PORT } from "./config/env.js";
 import { startWorker } from "./worker/worker.js";
-import { startWebsocket } from "./service/webSockets/websocket.service.js";
 
 const app = express();
-export const server = app.listen(PORT, () =>
-  console.log(`Worker running on ${PORT}`)
-);
+app.use(express.json());
 
-async function main() {
-  startWebsocket();
-  startWorker();
-}
+const PORT = process.env.PORT || 8080;
 
-main();
+app.post("/", async (req, res) => {
+  await startWorker();
+  res.status(204).send();
+});
+
+app.listen(PORT, () => {
+  console.log(`Worker running on ${PORT}`);
+});

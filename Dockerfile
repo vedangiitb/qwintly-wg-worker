@@ -2,15 +2,18 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install deps
+# install all dependencies (including dev)
 COPY package*.json ./
 RUN npm ci
 
-# Copy source
+# copy source
 COPY . .
 
-# Build TypeScript
+# build TypeScript
 RUN npm run build
+
+# remove dev dependencies
+RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
 ENV PORT=8080

@@ -1,11 +1,14 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2022"],
     "outDir": "dist",
     "rootDir": ".",
     "strict": true,
-    "esModuleInterop": true,     // ← REQUIRED for default import "ws"
+    "esModuleInterop": true,
+    "skipLibCheck": true,
     "types": ["node", "ws"]
   }
 }
