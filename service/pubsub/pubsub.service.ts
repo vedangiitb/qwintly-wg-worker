@@ -10,9 +10,12 @@ const pubsub = new PubSub({
 });
 
 export async function startPubSubListener(ctx: WorkerContext) {
-  const subscription = pubsub.subscription(
-    process.env.PUBSUB_SUBSCRIPTION || "webgen-topic-sub",
-  );
+  const sub = process.env.PUBSUB_SUBSCRIPTION_WG;
+  if (!sub) {
+    throw new Error("Missing PUBSUB_SUBSCRIPTION env var");
+  }
+
+  const subscription = pubsub.subscription(sub);
 
   console.log("Listening for messages...");
 

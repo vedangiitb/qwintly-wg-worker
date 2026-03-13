@@ -1,16 +1,21 @@
 import express from "express";
+import { PORT } from "./config/env.js";
 import { startWorker } from "./worker/worker.js";
 
 const app = express();
-app.use(express.json());
+app.get("/", (_req, res) => res.status(200).send("ok"));
+app.get("/healthz", (_req, res) => res.status(200).send("ok"));
+export const server = app.listen(PORT, () =>
+  console.log(`Worker running on ${PORT}`),
+);
 
-const PORT = process.env.PORT || 8080;
+async function main() {
+  try {
+    await startWorker();
+  } catch (err) {
+    console.error("Worker failed to start:", err);
+    process.exit(1);
+  }
+}
 
-app.post("/", async (req, res) => {
-  await startWorker();
-  res.status(204).send();
-});
-
-app.listen(PORT, () => {
-  console.log(`Worker running on ${PORT}`);
-});
+main();
