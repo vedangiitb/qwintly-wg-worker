@@ -10,9 +10,10 @@ const pubsub = new PubSub({
 });
 
 export async function startPubSubListener(ctx: WorkerContext) {
-  const sub = process.env.PUBSUB_SUBSCRIPTION_WG;
+  const sub = process.env.PUBSUB_SUBSCRIPTION;
   if (!sub) {
-    throw new Error("Missing PUBSUB_SUBSCRIPTION env var");
+    console.error("No sub configured");
+    return;
   }
 
   const subscription = pubsub.subscription(sub);
