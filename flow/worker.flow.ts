@@ -1,5 +1,6 @@
 import { runBuilderJob } from "../service/jobs/builder.job.js";
 import { runDeployerJob } from "../service/jobs/deployer.job.js";
+import { updateProjectStatus } from "../service/statusService/projectStatus.service.js";
 import { spawnLocalBuilder } from "../spawnLocalBuilder.js";
 import { EVENT_TYPES, GEN_STEPS } from "../types/events.js";
 import { broadCastLog } from "../utils/logger.js";
@@ -15,6 +16,7 @@ export async function startWorkerFlow(ctx: WorkerContext, sessionId: string) {
     });
   } else {
     try {
+      await updateProjectStatus(sessionId, true);
       await runBuilderJob(ctx, sessionId);
 
       await broadCastLog(
@@ -49,6 +51,8 @@ export async function startWorkerFlow(ctx: WorkerContext, sessionId: string) {
           source: "worker_flow",
         },
       );
+    } finally {
+      await updateProjectStatus(sessionId, false);
     }
   }
 }
