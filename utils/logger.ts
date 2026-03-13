@@ -1,6 +1,6 @@
 import { Logging } from "@google-cloud/logging";
 import { PROJECT_ID } from "../config/env.js";
-import { statusService } from "../service/statusService/status.service.js";
+import { statusService } from "../service/statusService/genStatus.service.js";
 import { EVENT_TYPES, EventType, GenStep } from "../types/events.js";
 import { normalizeTimestamp } from "./normalizeTimeStamp.js";
 

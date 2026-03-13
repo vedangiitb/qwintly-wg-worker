@@ -1,13 +1,9 @@
 import { EventType, GenStep } from "../../types/events.js";
 import { sendStatusToRedis } from "./redis.service.js";
-import { persistStatusMessage } from "./supabase.service.js";
-
-type PersistedStatusEvent = {
-  event_type: string;
-  step?: string | null;
-  message?: string | null;
-  seq_num: number;
-};
+import {
+  GenStatusRepository,
+  PersistedStatusEvent,
+} from "../../repository/genStatus.repository.js";
 
 type StatusLogger = Pick<typeof console, "error">;
 
@@ -54,9 +50,18 @@ export interface StatusServiceDeps {
   logger?: StatusLogger;
 }
 
+const genStatusRepository = new GenStatusRepository();
+
 const defaultDeps: StatusServiceDeps = {
   repository: {
-    persist: persistStatusMessage,
+    persist: (sessionId, eventType, step, message, source) =>
+      genStatusRepository.persistStatusMessage(
+        sessionId,
+        eventType,
+        step,
+        message,
+        source,
+      ),
   },
   publisher: {
     publish: sendStatusToRedis,
