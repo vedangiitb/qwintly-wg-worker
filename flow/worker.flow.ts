@@ -3,10 +3,22 @@ import { runDeployerJob } from "../service/jobs/deployer.job.js";
 import { updateProjectStatus } from "../service/statusService/projectStatus.service.js";
 import { spawnLocalBuilder } from "../spawnLocalBuilder.js";
 import { EVENT_TYPES, GEN_STEPS } from "../types/events.js";
+import { ProjectRequestType } from "../types/request.types.js";
 import { broadCastLog } from "../utils/logger.js";
 import { WorkerContext } from "../worker/workerContext.js";
 
-export async function startWorkerFlow(ctx: WorkerContext, sessionId: string) {
+export async function startWorkerFlow(
+  ctx: WorkerContext,
+  sessionId: string,
+  planId: string,
+  requestType: string,
+) {
+  if (
+    requestType !== ProjectRequestType.NEW &&
+    requestType !== ProjectRequestType.UPDATE
+  ) {
+    throw new Error("Invalid request type");
+  }
   if (process.env.LOCAL_MODE === "true") {
     await spawnLocalBuilder(sessionId, (sid, message) => {
       void broadCastLog(sid, message, {
@@ -17,7 +29,7 @@ export async function startWorkerFlow(ctx: WorkerContext, sessionId: string) {
   } else {
     try {
       await updateProjectStatus(sessionId, true);
-      await runBuilderJob(ctx, sessionId);
+      await runBuilderJob(ctx, sessionId, planId, requestType);
 
       await broadCastLog(
         sessionId,
