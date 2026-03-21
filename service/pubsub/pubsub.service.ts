@@ -22,11 +22,13 @@ export async function startPubSubListener(ctx: WorkerContext) {
 
   subscription.on("message", async (msg) => {
     let sessionId = "";
+    let planId = "";
+    let requestType = "";
     try {
       const payload = JSON.parse(msg.data.toString());
-      ({ chatId: sessionId } = payload);
-      if (!sessionId) {
-        throw new Error("Missing sessionId in payload");
+      ({ chatId: sessionId, planId, requestType } = payload);
+      if (!sessionId.trim() || !planId.trim() || !requestType.trim()) {
+        throw new Error("Missing sessionId or planId in payload");
       }
 
       await broadCastLog(sessionId, "Initializing session", {
@@ -35,7 +37,7 @@ export async function startPubSubListener(ctx: WorkerContext) {
         source: "pubsub",
       });
 
-      startWorkerFlow(ctx, sessionId);
+      startWorkerFlow(ctx, sessionId.trim(), planId.trim(), requestType.trim());
 
       console.log(sessionId, "Acking message");
       msg.ack();

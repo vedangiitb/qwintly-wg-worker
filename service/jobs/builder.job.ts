@@ -3,9 +3,16 @@ import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
 import { activeJobs, broadCastLog, pollLogs } from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 
-export async function runBuilderJob(ctx: WorkerContext, sessionId: string) {
+export async function runBuilderJob(
+  ctx: WorkerContext,
+  sessionId: string,
+  planId: string,
+  requestType: string,
+) {
   const jobParams = {
     SESSION_ID: sessionId,
+    TASKS_PLAN_ID: planId,
+    REQUEST_TYPE: requestType,
   };
 
   const request = {
