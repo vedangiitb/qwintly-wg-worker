@@ -1,7 +1,7 @@
 import { Logging } from "@google-cloud/logging";
 import { PROJECT_ID } from "../config/env.js";
 import { statusService } from "../service/statusService/genStatus.service.js";
-import { EVENT_TYPES, EventType, GenStep } from "../types/events.js";
+import { EVENT_TYPES, EventType, GEN_STEPS, GenStep } from "../types/events.js";
 import { normalizeTimestamp } from "./normalizeTimeStamp.js";
 
 const logging = new Logging({ projectId: PROJECT_ID });
@@ -15,7 +15,9 @@ export const activeJobs = new Map<string, ActiveJobState>();
 const TERMINAL_STATUSES = new Set(["SUCCESS", "ERROR", "FAILED"]);
 
 const resolveStepFromJobName = (jobName: string): GenStep =>
-  jobName.toLowerCase().includes("deploy") ? "DEPLOYING" : "BUILDING";
+  jobName.toLowerCase().includes("deploy")
+    ? GEN_STEPS.DEPLOYING
+    : GEN_STEPS.BUILDING;
 
 const inferEventType = (message: string): EventType => {
   const normalized = message.trim().toLowerCase();
@@ -35,7 +37,7 @@ const inferEventType = (message: string): EventType => {
     normalized.includes("completed") ||
     normalized.includes("successful")
   ) {
-    return "STEP_FINISHED";
+    return EVENT_TYPES.STEP_ERROR;
   }
 
   return EVENT_TYPES.STEP_STARTED;
@@ -51,7 +53,7 @@ export async function broadCastLog(
     await statusService(
       sessionId,
       meta.eventType ?? inferEventType(message),
-      meta.step ?? "INITIATING",
+      meta.step ?? GEN_STEPS.INITIATING,
       message,
       meta.source ?? "worker",
     );

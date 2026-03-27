@@ -22,7 +22,7 @@ export async function startWorkerFlow(
   if (process.env.LOCAL_MODE === "true") {
     await spawnLocalBuilder(sessionId, (sid, message) => {
       void broadCastLog(sid, message, {
-        step: "BUILDING",
+        step: GEN_STEPS.BUILDING,
         source: "local_builder",
       });
     });
@@ -58,8 +58,8 @@ export async function startWorkerFlow(
         sessionId,
         `Pipeline failed: ${(err as Error).message}`,
         {
-          eventType: "GENERATION_FAILED",
-          step: "DEPLOYING",
+          eventType: EVENT_TYPES.GENERATION_FAILED,
+          step: GEN_STEPS.DEPLOYING,
           source: "worker_flow",
         },
       );
