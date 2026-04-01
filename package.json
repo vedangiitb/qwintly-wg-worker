@@ -9,9 +9,9 @@
   },
   "dependencies": {
     "@google-cloud/logging": "^11.2.1",
-    "@google-cloud/pubsub": "^4.0.0",
     "@google-cloud/run": "^3.1.0",
     "@google-cloud/storage": "^7.18.0",
+    "google-auth-library": "^10.6.2",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.98.0",
     "@upstash/redis": "^1.36.3",

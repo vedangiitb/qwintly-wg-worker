@@ -9,3 +9,5 @@ export const PROJECT_ID = process.env.GCP_PROJECT_ID_QWINTLY;
 export const REGION = process.env.REGION || "asia-south1";
 export const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+export const PUBSUB_PUSH_AUDIENCE =
+  process.env.PUBSUB_PUSH_AUDIENCE + "/pubsub/push";
