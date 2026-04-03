@@ -13,6 +13,7 @@ import { WorkerContext } from "../worker/workerContext.js";
 export async function startWorkerFlow(
   ctx: WorkerContext,
   chatId: string,
+  sessionId: string,
   planId: string,
   requestType: string,
 ) {
@@ -24,56 +25,54 @@ export async function startWorkerFlow(
   }
   if (process.env.LOCAL_MODE === "true") {
     await spawnLocalBuilder(chatId, (sid, message) => {
-      void broadCastLog(sid, message, {
+      void broadCastLog(sid, sessionId, message, {
         step: GEN_STEPS.BUILDING,
         source: "local_builder",
       });
     });
   } else {
-    let genId: string = "";
+    let step = GEN_STEPS.INITIATING;
     try {
-      genId = await startGenerationSession(chatId);
-      if (!genId) {
-        throw new Error("Received empty genId");
-      }
-      await runBuilderJob(ctx, chatId, planId, requestType);
+      step = GEN_STEPS.BUILDING;
+      await runBuilderJob(ctx, chatId, sessionId, planId, requestType);
 
       await broadCastLog(
         chatId,
+        sessionId,
         "Builder completed. Starting deployer job",
         {
           eventType: EVENT_TYPES.STEP_FINISHED,
-          step: GEN_STEPS.BUILDING,
+          step: step,
           source: "worker",
         },
       );
 
-      await runDeployerJob(ctx, chatId);
+      step = GEN_STEPS.DEPLOYING;
+      await runDeployerJob(ctx, chatId, sessionId);
 
-      await broadCastLog(chatId, "Deployment successful", {
+      await broadCastLog(chatId, sessionId, "Deployment successful", {
         eventType: EVENT_TYPES.STEP_FINISHED,
-        step: GEN_STEPS.DEPLOYING,
+        step: step,
         source: "worker",
       });
-      await broadCastLog(chatId, "SUCCESS", {
+      await broadCastLog(chatId, sessionId, "SUCCESS", {
         eventType: EVENT_TYPES.GENERATION_COMPLETED,
-        step: GEN_STEPS.DEPLOYING,
+        step: step,
         source: "worker",
       });
     } catch (err) {
       await broadCastLog(
         chatId,
+        sessionId,
         `Pipeline failed: ${(err as Error).message}`,
         {
           eventType: EVENT_TYPES.GENERATION_FAILED,
-          step: GEN_STEPS.DEPLOYING,
+          step: step,
           source: "worker_flow",
         },
       );
     } finally {
-      if (genId) {
-        await finishGenerationSession(chatId, genId);
-      }
+      await finishGenerationSession(chatId, sessionId);
     }
   }
 }

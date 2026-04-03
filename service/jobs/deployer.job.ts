@@ -3,9 +3,14 @@ import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
 import { activeJobs, broadCastLog, pollLogs } from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 
-export async function runDeployerJob(ctx: WorkerContext, chatId: string) {
+export async function runDeployerJob(
+  ctx: WorkerContext,
+  chatId: string,
+  sessionId: string,
+) {
   const jobParams = {
     CHAT_ID: chatId,
+    SESSION_ID: sessionId,
   };
 
   const request = {
@@ -23,26 +28,24 @@ export async function runDeployerJob(ctx: WorkerContext, chatId: string) {
     },
   };
 
-  await broadCastLog(chatId, "Starting Deployer Job", {
+  await broadCastLog(chatId, sessionId, "Starting Deployer Job", {
     eventType: EVENT_TYPES.STEP_STARTED,
     step: GEN_STEPS.DEPLOYING,
     source: "worker",
   });
   const [operation] = await jobsClient.runJob(request);
-  // TODO: Should we do this? Why is it used?
   activeJobs.set(chatId, {
     lastTimestamp: new Date().toISOString(),
     jobName: ctx.deployerJob,
   });
 
-  await broadCastLog(chatId, "Deployer Cloud Run Job started", {
+  await broadCastLog(chatId, sessionId, "Deployer Cloud Run Job started", {
     eventType: EVENT_TYPES.STEP_STARTED,
     step: GEN_STEPS.DEPLOYING,
     source: "worker",
   });
 
-  // Start polling logs
-  pollLogs(chatId);
+  pollLogs(chatId, sessionId);
 
   try {
     await operation.promise();

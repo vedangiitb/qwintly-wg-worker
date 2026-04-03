@@ -11,6 +11,7 @@ export type PersistedStatusEvent = {
 export class GenStatusRepository extends DBRepository {
   async persistStatusMessage(
     chatId: string,
+    sessionId: string,
     eventType: EventType,
     step: GenStep,
     message: string,
@@ -34,6 +35,7 @@ export class GenStatusRepository extends DBRepository {
       .from("generation_events")
       .insert({
         conv_id: chatId,
+        gen_id: sessionId,
         event_type: eventType,
         step,
         message,

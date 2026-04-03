@@ -45,6 +45,7 @@ const inferEventType = (message: string): EventType => {
 
 export async function broadCastLog(
   chatId: string,
+  sessionId: string,
   message: string,
   meta: StatusMeta = {},
 ) {
@@ -52,6 +53,7 @@ export async function broadCastLog(
   try {
     await statusService(
       chatId,
+      sessionId,
       meta.eventType ?? inferEventType(message),
       meta.step ?? GEN_STEPS.INITIATING,
       message,
@@ -67,14 +69,7 @@ export async function broadCastLog(
   }
 }
 
-export async function broadcastToAll(message: string, meta: StatusMeta = {}) {
-  const chatIds = [...activeJobs.keys()];
-  await Promise.allSettled(
-    chatIds.map((chatId) => broadCastLog(chatId, message, meta)),
-  );
-}
-
-export async function pollLogs(chatId: string) {
+export async function pollLogs(chatId: string, sessionId: string) {
   const job = activeJobs.get(chatId);
   if (!job) return;
 
@@ -88,6 +83,7 @@ resource.type="cloud_run_job"
 resource.labels.job_name="${job.jobName}"
 jsonPayload.type="STATUS"
 jsonPayload.chatId="${chatId}"
+jsonPayload.sessionId="${sessionId}"
 timestamp > "${job.lastTimestamp}"
 `;
 
@@ -114,7 +110,7 @@ timestamp > "${job.lastTimestamp}"
           payload?.chatId === chatId &&
           typeof payload?.message === "string"
         ) {
-          await broadCastLog(chatId, payload.message, {
+          await broadCastLog(chatId, sessionId, payload.message, {
             step: resolveStepFromJobName(job.jobName),
             source: `cloud_run_job:${job.jobName}`,
           });

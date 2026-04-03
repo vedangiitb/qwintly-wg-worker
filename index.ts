@@ -2,7 +2,7 @@ import express from "express";
 import { OAuth2Client } from "google-auth-library";
 import { PORT, PUBSUB_PUSH_AUDIENCE } from "./config/env.js";
 import { handleWorkerRequest } from "./service/pubsub/pubsub.handler.js";
-import { createWorkerContext, WorkerContext } from "./worker/workerContext.js";
+import { getWorkerContext, WorkerContext } from "./worker/workerContext.js";
 
 const app = express();
 app.use(express.json());
@@ -13,7 +13,7 @@ export const server = app.listen(PORT, () =>
 );
 
 const authClient = new OAuth2Client();
-let workerCtx: WorkerContext = createWorkerContext();
+let workerCtx: WorkerContext = getWorkerContext();
 
 app.post("/pubsub/push", async (req, res) => {
   if (!workerCtx) {

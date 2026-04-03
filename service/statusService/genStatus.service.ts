@@ -33,6 +33,7 @@ export class StatusServiceError extends Error {
 export interface StatusRepository {
   persist(
     chatId: string,
+    sessionId: string,
     eventType: EventType,
     step: GenStep,
     message: string,
@@ -54,9 +55,10 @@ const genStatusRepository = new GenStatusRepository();
 
 const defaultDeps: StatusServiceDeps = {
   repository: {
-    persist: (chatId, eventType, step, message, source) =>
+    persist: (chatId, sessionId, eventType, step, message, source) =>
       genStatusRepository.persistStatusMessage(
         chatId,
+        sessionId,
         eventType,
         step,
         message,
@@ -71,6 +73,7 @@ const defaultDeps: StatusServiceDeps = {
 
 export const statusService = async (
   chatId: string,
+  sessionId: string,
   eventType: EventType,
   step: GenStep,
   message: string,
@@ -88,6 +91,7 @@ export const statusService = async (
   try {
     persistedEvent = await repository.persist(
       chatId,
+      sessionId,
       eventType,
       step,
       message,

@@ -2,6 +2,7 @@ import { startWorkerFlow } from "../../flow/worker.flow.js";
 import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
 import { broadCastLog } from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
+import { startGenerationSession } from "../statusService/genSession.service.js";
 
 class InvalidPayloadError extends Error {
   constructor(message: string) {
@@ -21,6 +22,7 @@ export async function handleWorkerRequest(
   rawPayload: string,
 ): Promise<{ status: HandlerStatus; error?: Error }> {
   let chatId = "";
+  let genId = "";
 
   try {
     const payload = JSON.parse(rawPayload) as {
@@ -37,18 +39,24 @@ export async function handleWorkerRequest(
       throw new InvalidPayloadError("Missing chatId or planId in payload");
     }
 
-    await broadCastLog(chatId, "Initializing session", {
+    const genId = await startGenerationSession(chatId);
+
+    if (!genId) {
+      throw new Error("Failed to generate genId");
+    }
+
+    await broadCastLog(chatId, genId, "Initializing session", {
       eventType: EVENT_TYPES.STEP_STARTED,
       step: GEN_STEPS.INITIATING,
       source: "pubsub",
     });
 
-    void startWorkerFlow(ctx, chatId, planId, requestType);
+    void startWorkerFlow(ctx, chatId, genId, planId, requestType);
 
     return { status: "ok" };
   } catch (err) {
     if (err instanceof Error && chatId) {
-      await broadCastLog(chatId, `PubSub error: ${err.message}`, {
+      await broadCastLog(chatId, genId, `PubSub error: ${err.message}`, {
         eventType: EVENT_TYPES.STEP_ERROR,
         step: GEN_STEPS.INITIATING,
         source: "pubsub",
