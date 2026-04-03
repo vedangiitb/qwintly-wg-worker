@@ -20,7 +20,7 @@ export async function handleWorkerRequest(
   ctx: WorkerContext,
   rawPayload: string,
 ): Promise<{ status: HandlerStatus; error?: Error }> {
-  let sessionId = "";
+  let chatId = "";
 
   try {
     const payload = JSON.parse(rawPayload) as {
@@ -29,26 +29,26 @@ export async function handleWorkerRequest(
       requestType?: unknown;
     };
 
-    sessionId = normalizeString(payload?.chatId);
+    chatId = normalizeString(payload?.chatId);
     const planId = normalizeString(payload?.planId);
     const requestType = normalizeString(payload?.requestType);
 
-    if (!sessionId || !planId || !requestType) {
-      throw new InvalidPayloadError("Missing sessionId or planId in payload");
+    if (!chatId || !planId || !requestType) {
+      throw new InvalidPayloadError("Missing chatId or planId in payload");
     }
 
-    await broadCastLog(sessionId, "Initializing session", {
+    await broadCastLog(chatId, "Initializing session", {
       eventType: EVENT_TYPES.STEP_STARTED,
       step: GEN_STEPS.INITIATING,
       source: "pubsub",
     });
 
-    void startWorkerFlow(ctx, sessionId, planId, requestType);
+    void startWorkerFlow(ctx, chatId, planId, requestType);
 
     return { status: "ok" };
   } catch (err) {
-    if (err instanceof Error && sessionId) {
-      await broadCastLog(sessionId, `PubSub error: ${err.message}`, {
+    if (err instanceof Error && chatId) {
+      await broadCastLog(chatId, `PubSub error: ${err.message}`, {
         eventType: EVENT_TYPES.STEP_ERROR,
         step: GEN_STEPS.INITIATING,
         source: "pubsub",

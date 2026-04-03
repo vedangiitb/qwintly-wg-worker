@@ -11,7 +11,7 @@ const executionsClient = new ExecutionsClient({
 
 export async function waitForExecutionByLabel(
   jobResource: string,
-  sessionId: string
+  chatId: string
 ): Promise<string> {
   const endTime = Date.now() + MAX_DISCOVERY_MS; // 5 minutes from now
   while (Date.now() < endTime) {
@@ -24,7 +24,7 @@ export async function waitForExecutionByLabel(
 
     console.log(executions);
 
-    const match = executions.find((e) => e.labels?.sessionId === sessionId);
+    const match = executions.find((e) => e.labels?.chatId === chatId);
 
     console.log("match", match);
 

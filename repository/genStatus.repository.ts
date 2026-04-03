@@ -10,7 +10,7 @@ export type PersistedStatusEvent = {
 
 export class GenStatusRepository extends DBRepository {
   async persistStatusMessage(
-    sessionId: string,
+    chatId: string,
     eventType: EventType,
     step: GenStep,
     message: string,
@@ -19,7 +19,7 @@ export class GenStatusRepository extends DBRepository {
     const { data: lastEvent, error: seqError } = await this.client
       .from("generation_events")
       .select("seq_num")
-      .eq("conv_id", sessionId)
+      .eq("conv_id", chatId)
       .order("seq_num", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -33,7 +33,7 @@ export class GenStatusRepository extends DBRepository {
     const { data, error } = await this.client
       .from("generation_events")
       .insert({
-        conv_id: sessionId,
+        conv_id: chatId,
         event_type: eventType,
         step,
         message,
