@@ -7,10 +7,12 @@ export async function runDeployerJob(
   ctx: WorkerContext,
   chatId: string,
   sessionId: string,
+  requestType: string,
 ) {
   const jobParams = {
     CHAT_ID: chatId,
     SESSION_ID: sessionId,
+    REQUEST_TYPE: requestType,
   };
 
   const request = {
