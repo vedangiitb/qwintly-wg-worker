@@ -48,7 +48,7 @@ export async function startWorkerFlow(
       );
 
       step = GEN_STEPS.DEPLOYING;
-      await runDeployerJob(ctx, chatId, sessionId);
+      await runDeployerJob(ctx, chatId, sessionId,requestType);
 
       await broadCastLog(chatId, sessionId, "Deployment successful", {
         eventType: EVENT_TYPES.STEP_FINISHED,
