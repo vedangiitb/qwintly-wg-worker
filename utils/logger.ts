@@ -37,7 +37,7 @@ const inferEventType = (message: string): EventType => {
     normalized.includes("completed") ||
     normalized.includes("successful")
   ) {
-    return EVENT_TYPES.STEP_ERROR;
+    return EVENT_TYPES.STEP_FINISHED;
   }
 
   return EVENT_TYPES.STEP_STARTED;

@@ -47,11 +47,14 @@ export async function runDeployerJob(
     source: "worker",
   });
 
-  pollLogs(chatId, sessionId);
+  const logsComplete = pollLogs(chatId, sessionId);
 
   try {
     await operation.promise();
   } finally {
+    // Give the poller up to 10 seconds to drain remaining logs before cleaning up.
+    const LOG_DRAIN_TIMEOUT_MS = 10_000;
+    await Promise.race([logsComplete, new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS))]);
     activeJobs.delete(chatId);
   }
 }

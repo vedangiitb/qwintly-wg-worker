@@ -57,15 +57,17 @@ export async function runBuilderJob(
   });
 
   // Start polling logs — returns a Promise that resolves when a terminal
-  // status is seen, ensuring we drain all logs before the deployer starts.
+  // status is seen (SUCCESS/ERROR/FAILED) or the 10s drain window expires.
   const logsComplete = pollLogs(chatId, sessionId);
 
-  // Wait for both the job to finish AND all its logs to be flushed.
-  // The log poller has a 5-minute timeout in case the terminal log never arrives.
-  const LOG_DRAIN_TIMEOUT_MS = 5 * 60 * 1000;
-  const logTimeout = new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS));
-  await Promise.all([operation.promise(), Promise.race([logsComplete, logTimeout])]);
+  // Wait for the builder Cloud Run job to finish (authoritative signal).
+  await operation.promise();
 
-  // Safety cleanup in case the poller exited without seeing a terminal message.
+  // Give the poller up to 10 seconds to keep fetching and broadcasting any
+  // remaining logs. activeJobs is NOT deleted yet so the poller stays active.
+  const LOG_DRAIN_TIMEOUT_MS = 10_000;
+  await Promise.race([logsComplete, new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS))]);
+
+  // Clean up after drain — stops the poller if it's still running.
   activeJobs.delete(chatId);
 }
