@@ -31,7 +31,7 @@ export const sendStatusToRedis = async (
   );
 
   await redis.hset(`chat:${chatId}:state:${genId}`, {
-    current_status: event.event_type,
+    current_status: event.message,
     last_seq: event.seq_num.toString(),
   });
 };
