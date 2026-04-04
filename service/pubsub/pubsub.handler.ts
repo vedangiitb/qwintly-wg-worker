@@ -39,7 +39,7 @@ export async function handleWorkerRequest(
       throw new InvalidPayloadError("Missing chatId or planId in payload");
     }
 
-    const genId = await startGenerationSession(chatId);
+    genId = await startGenerationSession(chatId);
 
     if (!genId) {
       throw new Error("Failed to generate genId");
