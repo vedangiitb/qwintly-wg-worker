@@ -42,7 +42,11 @@ export interface StatusRepository {
 }
 
 export interface StatusPublisher {
-  publish(chatId: string, event: PersistedStatusEvent): Promise<void>;
+  publish(
+    chatId: string,
+    genId: string,
+    event: PersistedStatusEvent,
+  ): Promise<void>;
 }
 
 export interface StatusServiceDeps {
@@ -109,7 +113,7 @@ export const statusService = async (
   }
 
   try {
-    await publisher.publish(chatId, persistedEvent);
+    await publisher.publish(chatId, sessionId, persistedEvent);
     return persistedEvent;
   } catch (error) {
     logger.error("Failed publishing status event to Redis", {
