@@ -69,16 +69,23 @@ export async function broadCastLog(
   }
 }
 
-export async function pollLogs(chatId: string, sessionId: string) {
-  const job = activeJobs.get(chatId);
-  if (!job) return;
+export function pollLogs(chatId: string, sessionId: string): Promise<void> {
+  return new Promise((resolve) => {
+    const job = activeJobs.get(chatId);
+    if (!job) {
+      resolve();
+      return;
+    }
 
-  async function loop() {
-    try {
-      const job = activeJobs.get(chatId);
-      if (!job) return;
+    async function loop() {
+      try {
+        const job = activeJobs.get(chatId);
+        if (!job) {
+          resolve();
+          return;
+        }
 
-      const filter = `
+        const filter = `
 resource.type="cloud_run_job"
 resource.labels.job_name="${job.jobName}"
 jsonPayload.type="STATUS"
@@ -87,50 +94,52 @@ jsonPayload.sessionId="${sessionId}"
 timestamp > "${job.lastTimestamp}"
 `;
 
-      const [entries] = await logging.getEntries({
-        filter,
-        orderBy: "timestamp asc",
-        pageSize: 50,
-      });
+        const [entries] = await logging.getEntries({
+          filter,
+          orderBy: "timestamp asc",
+          pageSize: 50,
+        });
 
-      for (const entry of entries) {
-        const ts = entry.metadata.timestamp;
-        if (!ts) continue;
+        for (const entry of entries) {
+          const ts = entry.metadata.timestamp;
+          if (!ts) continue;
 
-        const tsIso = normalizeTimestamp(ts);
+          const tsIso = normalizeTimestamp(ts);
 
-        const payload = entry.data as {
-          chatId?: string;
-          type?: string;
-          message?: string;
-        };
+          const payload = entry.data as {
+            chatId?: string;
+            type?: string;
+            message?: string;
+          };
 
-        if (
-          payload?.type === "STATUS" &&
-          payload?.chatId === chatId &&
-          typeof payload?.message === "string"
-        ) {
-          await broadCastLog(chatId, sessionId, payload.message, {
-            step: resolveStepFromJobName(job.jobName),
-            source: `cloud_run_job:${job.jobName}`,
-          });
+          if (
+            payload?.type === "STATUS" &&
+            payload?.chatId === chatId &&
+            typeof payload?.message === "string"
+          ) {
+            await broadCastLog(chatId, sessionId, payload.message, {
+              step: resolveStepFromJobName(job.jobName),
+              source: `cloud_run_job:${job.jobName}`,
+            });
 
-          // advance cursor
-          job.lastTimestamp = new Date(
-            new Date(tsIso).getTime() + 1,
-          ).toISOString();
+            // advance cursor
+            job.lastTimestamp = new Date(
+              new Date(tsIso).getTime() + 1,
+            ).toISOString();
 
-          if (TERMINAL_STATUSES.has(payload.message)) {
-            activeJobs.delete(chatId);
-            return;
+            if (TERMINAL_STATUSES.has(payload.message)) {
+              activeJobs.delete(chatId);
+              resolve();
+              return;
+            }
           }
         }
+      } catch (err) {
+        console.error("pollLogs error", err);
       }
-    } catch (err) {
-      console.error("pollLogs error", err);
+      setTimeout(loop, 1000);
     }
-    setTimeout(loop, 1000);
-  }
 
-  loop();
+    void loop();
+  });
 }
