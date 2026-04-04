@@ -32,6 +32,7 @@ export class StatusServiceError extends Error {
 
 export interface StatusRepository {
   persist(
+    chatId: string,
     sessionId: string,
     eventType: EventType,
     step: GenStep,
@@ -41,7 +42,11 @@ export interface StatusRepository {
 }
 
 export interface StatusPublisher {
-  publish(sessionId: string, event: PersistedStatusEvent): Promise<void>;
+  publish(
+    chatId: string,
+    genId: string,
+    event: PersistedStatusEvent,
+  ): Promise<void>;
 }
 
 export interface StatusServiceDeps {
@@ -54,8 +59,9 @@ const genStatusRepository = new GenStatusRepository();
 
 const defaultDeps: StatusServiceDeps = {
   repository: {
-    persist: (sessionId, eventType, step, message, source) =>
+    persist: (chatId, sessionId, eventType, step, message, source) =>
       genStatusRepository.persistStatusMessage(
+        chatId,
         sessionId,
         eventType,
         step,
@@ -70,6 +76,7 @@ const defaultDeps: StatusServiceDeps = {
 };
 
 export const statusService = async (
+  chatId: string,
   sessionId: string,
   eventType: EventType,
   step: GenStep,
@@ -79,7 +86,7 @@ export const statusService = async (
 ): Promise<PersistedStatusEvent> => {
   const { repository, publisher, logger = console } = deps;
 
-  assertNonEmpty(sessionId, "sessionId");
+  assertNonEmpty(chatId, "chatId");
   assertNonEmpty(message, "message");
   assertNonEmpty(source, "source");
 
@@ -87,6 +94,7 @@ export const statusService = async (
 
   try {
     persistedEvent = await repository.persist(
+      chatId,
       sessionId,
       eventType,
       step,
@@ -99,17 +107,17 @@ export const statusService = async (
       "Failed to persist status event",
       {
         cause: error,
-        context: { sessionId, eventType, step, source },
+        context: { chatId, eventType, step, source },
       },
     );
   }
 
   try {
-    await publisher.publish(sessionId, persistedEvent);
+    await publisher.publish(chatId, sessionId, persistedEvent);
     return persistedEvent;
   } catch (error) {
     logger.error("Failed publishing status event to Redis", {
-      sessionId,
+      chatId,
       seq_num: persistedEvent.seq_num,
       error,
     });
@@ -120,7 +128,7 @@ export const statusService = async (
       {
         cause: error,
         context: {
-          sessionId,
+          chatId,
           persistedEvent,
         },
       },

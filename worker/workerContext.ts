@@ -10,6 +10,8 @@ import {
   SUPABASE_SECRET_KEY,
 } from "../config/env.js";
 
+let cachedJobContext: WorkerContext | null = null;
+
 export function createWorkerContext() {
   return {
     port: PORT,
@@ -20,6 +22,13 @@ export function createWorkerContext() {
     supabaseSecretKey: SUPABASE_SECRET_KEY,
     supabaseUrl: NEXT_PUBLIC_SUPABASE_URL,
   };
+}
+export function getWorkerContext(): WorkerContext {
+  if (!cachedJobContext) {
+    cachedJobContext = createWorkerContext();
+  }
+
+  return cachedJobContext;
 }
 
 export type WorkerContext = ReturnType<typeof createWorkerContext>;

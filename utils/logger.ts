@@ -44,13 +44,15 @@ const inferEventType = (message: string): EventType => {
 };
 
 export async function broadCastLog(
+  chatId: string,
   sessionId: string,
   message: string,
   meta: StatusMeta = {},
 ) {
-  console.log(`Log for SessionId: ${sessionId}`, message, meta);
+  console.log(`Log for chatId: ${chatId}`, message, meta);
   try {
     await statusService(
+      chatId,
       sessionId,
       meta.eventType ?? inferEventType(message),
       meta.step ?? GEN_STEPS.INITIATING,
@@ -59,7 +61,7 @@ export async function broadCastLog(
     );
   } catch (err) {
     console.error("Failed to emit status event", {
-      sessionId,
+      chatId,
       message,
       meta,
       error: err,
@@ -67,26 +69,20 @@ export async function broadCastLog(
   }
 }
 
-export async function broadcastToAll(message: string, meta: StatusMeta = {}) {
-  const sessionIds = [...activeJobs.keys()];
-  await Promise.allSettled(
-    sessionIds.map((sessionId) => broadCastLog(sessionId, message, meta)),
-  );
-}
-
-export async function pollLogs(sessionId: string) {
-  const job = activeJobs.get(sessionId);
+export async function pollLogs(chatId: string, sessionId: string) {
+  const job = activeJobs.get(chatId);
   if (!job) return;
 
   async function loop() {
     try {
-      const job = activeJobs.get(sessionId);
+      const job = activeJobs.get(chatId);
       if (!job) return;
 
       const filter = `
 resource.type="cloud_run_job"
 resource.labels.job_name="${job.jobName}"
 jsonPayload.type="STATUS"
+jsonPayload.chatId="${chatId}"
 jsonPayload.sessionId="${sessionId}"
 timestamp > "${job.lastTimestamp}"
 `;
@@ -104,17 +100,17 @@ timestamp > "${job.lastTimestamp}"
         const tsIso = normalizeTimestamp(ts);
 
         const payload = entry.data as {
-          sessionId?: string;
+          chatId?: string;
           type?: string;
           message?: string;
         };
 
         if (
           payload?.type === "STATUS" &&
-          payload?.sessionId === sessionId &&
+          payload?.chatId === chatId &&
           typeof payload?.message === "string"
         ) {
-          await broadCastLog(sessionId, payload.message, {
+          await broadCastLog(chatId, sessionId, payload.message, {
             step: resolveStepFromJobName(job.jobName),
             source: `cloud_run_job:${job.jobName}`,
           });
@@ -125,7 +121,7 @@ timestamp > "${job.lastTimestamp}"
           ).toISOString();
 
           if (TERMINAL_STATUSES.has(payload.message)) {
-            activeJobs.delete(sessionId);
+            activeJobs.delete(chatId);
             return;
           }
         }

@@ -5,49 +5,37 @@ export type PersistedStatusEvent = {
   event_type: string;
   step?: string | null;
   message?: string | null;
+  source?: string | null;
   seq_num: number;
 };
 
 export class GenStatusRepository extends DBRepository {
   async persistStatusMessage(
+    chatId: string,
     sessionId: string,
     eventType: EventType,
     step: GenStep,
     message: string,
-    source: string,
+    source: string
   ): Promise<PersistedStatusEvent> {
-    const { data: lastEvent, error: seqError } = await this.client
-      .from("generation_events")
-      .select("seq_num")
-      .eq("conv_id", sessionId)
-      .order("seq_num", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (seqError) {
-      throw new Error(`Failed fetching last seq_num: ${seqError.message}`);
-    }
-
-    const nextSeq = (lastEvent?.seq_num ?? 0) + 1;
-
-    const { data, error } = await this.client
-      .from("generation_events")
-      .insert({
-        conv_id: sessionId,
-        event_type: eventType,
-        step,
-        message,
-        source,
-        seq_num: nextSeq,
-        last_modified: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data, error } = await this.client.rpc(
+      "persist_generation_event",
+      {
+        p_conv_id: chatId,
+        p_gen_id: sessionId,
+        p_event_type: eventType,
+        p_step: step,
+        p_message: message,
+        p_source: source,
+      }
+    );
 
     if (error) {
-      throw new Error(`Failed inserting generation event: ${error.message}`);
+      throw new Error(
+        `Failed calling persist_generation_event RPC: ${error.message}`
+      );
     }
 
-    return data;
+    return data as PersistedStatusEvent;
   }
 }

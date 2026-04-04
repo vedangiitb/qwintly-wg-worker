@@ -1,12 +1,12 @@
 import { DBRepository } from "./repository.js";
 
 export class ProjectStatusRepository extends DBRepository {
-  async updateProjectStatus(sessionId: string, isGenerating: boolean) {
+  async updateProjectStatus(chatId: string, isGenerating: boolean) {
     const { data, error } = await this.client
       .from("chats")
       .update({ is_generating: isGenerating })
       .select("id")
-      .eq("id", sessionId)
+      .eq("id", chatId)
       .single();
 
     if (error) {
@@ -14,7 +14,7 @@ export class ProjectStatusRepository extends DBRepository {
     }
 
     if (!data) {
-      throw new Error(`Project not found: ${sessionId}`);
+      throw new Error(`Project not found: ${chatId}`);
     }
 
     return data.id;

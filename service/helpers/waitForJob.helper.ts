@@ -5,10 +5,10 @@ export type JobExecutionStatus = "RUNNING" | "SUCCEEDED" | "FAILED";
 
 export async function waitForJob(
   jobResource: string, // projects/.../jobs/your-job
-  sessionId: string // label value
+  chatId: string // label value
 ): Promise<void> {
   // Step 1: discover the execution
-  const executionName = await waitForExecutionByLabel(jobResource, sessionId);
+  const executionName = await waitForExecutionByLabel(jobResource, chatId);
   console.log(executionName)
 
   // Step 2: poll execution status

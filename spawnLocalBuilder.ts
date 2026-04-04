@@ -6,8 +6,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export async function spawnLocalBuilder(
-  sessionId: string,
-  onLog?: (sessionId: string, message: string) => void
+  chatId: string,
+  onLog?: (chatId: string, message: string) => void
 ) {
   const builderEntry = path.resolve(
     __dirname,
@@ -17,7 +17,7 @@ export async function spawnLocalBuilder(
   const child = spawn("node", [builderEntry], {
     env: {
       ...process.env,
-      SESSION_ID: sessionId,
+      CHAT_ID: chatId,
       REQUEST_TYPE: "new",
     },
     cwd: path.resolve(__dirname, "../qwintly-builder"),
@@ -26,15 +26,15 @@ export async function spawnLocalBuilder(
 
   child.stdout.on("data", (d) => {
     const msg = d.toString();
-    if (onLog) onLog(sessionId, `BUILDER STDOUT: ${msg}`);
+    if (onLog) onLog(chatId, `BUILDER STDOUT: ${msg}`);
   });
 
   child.stderr.on("data", (d) => {
     const msg = d.toString();
-    if (onLog) onLog(sessionId, `BUILDER STDERR: ${msg}`);
+    if (onLog) onLog(chatId, `BUILDER STDERR: ${msg}`);
   });
 
   child.on("exit", (code) => {
-    if (onLog) onLog(sessionId, `Builder exited with code ${code}`);
+    if (onLog) onLog(chatId, `Builder exited with code ${code}`);
   });
 }

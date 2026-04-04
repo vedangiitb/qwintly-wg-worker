@@ -1,7 +1,8 @@
 import { redis } from "../../config/redis.js";
 
 export const sendStatusToRedis = async (
-  sessionId: string,
+  chatId: string,
+  genId: string,
   event: {
     event_type: string;
     step?: string;
@@ -9,7 +10,7 @@ export const sendStatusToRedis = async (
     seq_num: number;
   },
 ) => {
-  const streamKey = `chat:${sessionId}:events`;
+  const streamKey = `chat:${chatId}:gen:${genId}:events`;
 
   await redis.xadd(
     streamKey,
@@ -29,8 +30,7 @@ export const sendStatusToRedis = async (
     },
   );
 
-  // Optional: update fast-access state
-  await redis.hset(`chat:${sessionId}:state`, {
+  await redis.hset(`chat:${chatId}:state:${genId}`, {
     current_status: event.event_type,
     last_seq: event.seq_num.toString(),
   });

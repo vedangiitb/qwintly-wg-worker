@@ -5,11 +5,13 @@ import { WorkerContext } from "../../worker/workerContext.js";
 
 export async function runBuilderJob(
   ctx: WorkerContext,
+  chatId: string,
   sessionId: string,
   planId: string,
   requestType: string,
 ) {
   const jobParams = {
+    CHAT_ID: chatId,
     SESSION_ID: sessionId,
     TASKS_PLAN_ID: planId,
     REQUEST_TYPE: requestType,
@@ -19,7 +21,6 @@ export async function runBuilderJob(
     name: ctx.builderJobResource,
     overrides: {
       labels: {
-        sessiond_id: sessionId,
         pipeline: "builder",
       },
       containerOverrides: [
@@ -33,11 +34,8 @@ export async function runBuilderJob(
     },
   };
 
-  console.log(
-    sessionId,
-    `Starting Builder Cloud Run Job for session ${sessionId}`,
-  );
-  await broadCastLog(sessionId, "Starting Builder Job", {
+  console.log(chatId, `Starting Builder Cloud Run Job for session ${chatId}`);
+  await broadCastLog(chatId, sessionId, "Starting Builder Job", {
     eventType: EVENT_TYPES.STEP_STARTED,
     step: GEN_STEPS.BUILDING,
     source: "worker",
@@ -45,25 +43,21 @@ export async function runBuilderJob(
 
   const [operation] = await jobsClient.runJob(request);
 
-  // TODO: Should we do this? Why is it used?
-  activeJobs.set(sessionId, {
+  activeJobs.set(chatId, {
     lastTimestamp: new Date().toISOString(),
     jobName: ctx.builderJob,
   });
 
-  console.log(
-    sessionId,
-    `Builder Cloud Run Job started for session ${sessionId}`,
-  );
+  console.log(chatId, `Builder Cloud Run Job started for session ${chatId}`);
 
-  await broadCastLog(sessionId, "Builder Cloud Run Job started", {
+  await broadCastLog(chatId, sessionId, "Builder Cloud Run Job started", {
     eventType: EVENT_TYPES.STEP_STARTED,
     step: GEN_STEPS.BUILDING,
     source: "worker",
   });
 
   // Start polling logs
-  pollLogs(sessionId);
+  pollLogs(chatId, sessionId);
 
   await operation.promise();
 }
