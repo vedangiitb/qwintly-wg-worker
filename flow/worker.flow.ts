@@ -15,6 +15,7 @@ export async function startWorkerFlow(
   requestType: string,
 ) {
   let step = GEN_STEPS.INITIATING;
+  let success = false;
   try {
     if (
       requestType !== ProjectRequestType.NEW &&
@@ -58,6 +59,7 @@ export async function startWorkerFlow(
         step: step,
         source: "worker",
       });
+      success = true;
     }
   } catch (err) {
     await broadCastLog(
@@ -71,6 +73,6 @@ export async function startWorkerFlow(
       },
     );
   } finally {
-    await finishGenerationSession(chatId, sessionId);
+    await finishGenerationSession(chatId, sessionId, planId, success);
   }
 }
