@@ -23,8 +23,8 @@ export async function startWorkerFlow(
     ) {
       throw new Error("Invalid request type");
     }
+    step = GEN_STEPS.BUILDING;
     if (process.env.LOCAL_MODE === "true") {
-      step = GEN_STEPS.BUILDING;
       await spawnLocalBuilder(chatId, (sid, message) => {
         void broadCastLog(sid, sessionId, message, {
           step: GEN_STEPS.BUILDING,
@@ -32,7 +32,6 @@ export async function startWorkerFlow(
         });
       });
     } else {
-      step = GEN_STEPS.BUILDING;
       await runBuilderJob(ctx, chatId, sessionId, planId, requestType);
 
       await broadCastLog(
@@ -47,6 +46,7 @@ export async function startWorkerFlow(
       );
 
       step = GEN_STEPS.DEPLOYING;
+
       await runDeployerJob(ctx, chatId, sessionId, requestType);
 
       await broadCastLog(chatId, sessionId, "Deployment successful", {
@@ -59,8 +59,8 @@ export async function startWorkerFlow(
         step: step,
         source: "worker",
       });
-      success = true;
     }
+    success = true;
   } catch (err) {
     await broadCastLog(
       chatId,
