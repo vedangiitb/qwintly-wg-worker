@@ -53,8 +53,8 @@ jobs:
             --region asia-south1 \
             --platform managed \
             --service-account ${{ vars.WORKER_SA_EMAIL }} \
-            --set-env-vars GCP_PROJECT_ID_QWINTLY=${{ vars.GCP_PROJECT_ID_QWINTLY }},PUBSUB_PUSH_AUDIENCE=${{ vars.PUBSUB_PUSH_AUDIENCE }} \
-            --set-secrets NEXT_PUBLIC_SUPABASE_URL=supabase-url:latest,SUPABASE_SECRET_KEY=supabase-secret-key:latest,UPSTASH_REDIS_REST_TOKEN_GEN_EVENTS=upstash-redis-rest-token-gen-events:latest,UPSTASH_REDIS_REST_URL_GEN_EVENTS=upstash-redis-rest-url-gen-events:latest \
+            --set-env-vars GCP_PROJECT_ID_QWINTLY=${{ vars.GCP_PROJECT_ID_QWINTLY }},PUBSUB_PUSH_AUDIENCE=${{ vars.PUBSUB_PUSH_AUDIENCE }},NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }},UPSTASH_REDIS_REST_URL_GEN_EVENTS=${{ vars.UPSTASH_REDIS_REST_URL_GEN_EVENTS }} \
+            --set-secrets SUPABASE_SECRET_KEY=supabase-secret-key:latest,UPSTASH_REDIS_REST_TOKEN_GEN_EVENTS=upstash-redis-rest-token-gen-events:latest \
             --min-instances 0 \
             --max-instances 10 \
             --concurrency 1 \
