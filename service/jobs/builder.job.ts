@@ -1,6 +1,11 @@
 import { jobsClient } from "../../config/jobsClient.config.js";
 import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
-import { activeJobs, broadCastLog, pollLogs } from "../../utils/logger.js";
+import {
+  LOG_POLL_CONFIG,
+  activeJobs,
+  broadCastLog,
+  pollLogs,
+} from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 
 export async function runBuilderJob(
@@ -46,6 +51,7 @@ export async function runBuilderJob(
   activeJobs.set(chatId, {
     lastTimestamp: new Date().toISOString(),
     jobName: ctx.builderJob,
+    seenIds: [],
   });
 
   console.log(chatId, `Builder Cloud Run Job started for session ${chatId}`);
@@ -63,10 +69,14 @@ export async function runBuilderJob(
   // Wait for the builder Cloud Run job to finish (authoritative signal).
   await operation.promise();
 
-  // Give the poller up to 10 seconds to keep fetching and broadcasting any
-  // remaining logs. activeJobs is NOT deleted yet so the poller stays active.
-  const LOG_DRAIN_TIMEOUT_MS = 10_000;
-  await Promise.race([logsComplete, new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS))]);
+  const job = activeJobs.get(chatId);
+  if (job) job.completedAt = new Date().toISOString();
+
+  const LOG_DRAIN_TIMEOUT_MS = LOG_POLL_CONFIG.MAX_DRAIN_MS + 2_000;
+  await Promise.race([
+    logsComplete,
+    new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS)),
+  ]);
 
   // Clean up after drain — stops the poller if it's still running.
   activeJobs.delete(chatId);

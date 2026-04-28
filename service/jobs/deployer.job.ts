@@ -1,6 +1,11 @@
 import { jobsClient } from "../../config/jobsClient.config.js";
 import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
-import { activeJobs, broadCastLog, pollLogs } from "../../utils/logger.js";
+import {
+  LOG_POLL_CONFIG,
+  activeJobs,
+  broadCastLog,
+  pollLogs,
+} from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 
 export async function runDeployerJob(
@@ -39,6 +44,7 @@ export async function runDeployerJob(
   activeJobs.set(chatId, {
     lastTimestamp: new Date().toISOString(),
     jobName: ctx.deployerJob,
+    seenIds: [],
   });
 
   await broadCastLog(chatId, sessionId, "Deployer Cloud Run Job started", {
@@ -52,9 +58,14 @@ export async function runDeployerJob(
   try {
     await operation.promise();
   } finally {
-    // Give the poller up to 10 seconds to drain remaining logs before cleaning up.
-    const LOG_DRAIN_TIMEOUT_MS = 10_000;
-    await Promise.race([logsComplete, new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS))]);
+    const job = activeJobs.get(chatId);
+    if (job) job.completedAt = new Date().toISOString();
+
+    const LOG_DRAIN_TIMEOUT_MS = LOG_POLL_CONFIG.MAX_DRAIN_MS + 2_000;
+    await Promise.race([
+      logsComplete,
+      new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS)),
+    ]);
     activeJobs.delete(chatId);
   }
 }

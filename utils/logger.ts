@@ -6,7 +6,23 @@ import { normalizeTimestamp } from "./normalizeTimeStamp.js";
 
 const logging = new Logging({ projectId: PROJECT_ID });
 
-type ActiveJobState = { lastTimestamp: string; jobName: string };
+export const LOG_POLL_CONFIG = {
+  POLL_INTERVAL_MS: 1000,
+  LOOKBACK_MS: 10_000,
+  IDLE_MS: 3_000,
+  MAX_DRAIN_MS: 30_000,
+  TAIL_AFTER_TERMINAL_MS: 2_000,
+  DEDUP_RING_SIZE: 500,
+} as const;
+
+type ActiveJobState = {
+  lastTimestamp: string;
+  jobName: string;
+  completedAt?: string;
+  terminalSeenAt?: string;
+  seenIds: string[];
+  lastEmittedAt?: string;
+};
 type StatusMeta = { eventType?: EventType; step?: GenStep; source?: string };
 
 // Track active jobs -> execution state
@@ -69,14 +85,20 @@ export async function broadCastLog(
   }
 }
 
+const toIso = (d: Date) => d.toISOString();
+
+const safeDate = (iso: string): Date | null => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const ringPush = (arr: string[], value: string, maxSize: number) => {
+  arr.push(value);
+  if (arr.length > maxSize) arr.splice(0, arr.length - maxSize);
+};
+
 export function pollLogs(chatId: string, sessionId: string): Promise<void> {
   return new Promise((resolve) => {
-    const job = activeJobs.get(chatId);
-    if (!job) {
-      resolve();
-      return;
-    }
-
     async function loop() {
       try {
         const job = activeJobs.get(chatId);
@@ -85,13 +107,18 @@ export function pollLogs(chatId: string, sessionId: string): Promise<void> {
           return;
         }
 
+        const lastTsDate = safeDate(job.lastTimestamp) ?? new Date();
+        const lookbackStart = toIso(
+          new Date(lastTsDate.getTime() - LOG_POLL_CONFIG.LOOKBACK_MS),
+        );
+
         const filter = `
 resource.type="cloud_run_job"
 resource.labels.job_name="${job.jobName}"
 jsonPayload.type="STATUS"
 jsonPayload.chatId="${chatId}"
 jsonPayload.sessionId="${sessionId}"
-timestamp > "${job.lastTimestamp}"
+timestamp >= "${lookbackStart}"
 `;
 
         const [entries] = await logging.getEntries({
@@ -100,11 +127,17 @@ timestamp > "${job.lastTimestamp}"
           pageSize: 50,
         });
 
+        let maxSeenMs: number | null = null;
+
         for (const entry of entries) {
           const ts = entry.metadata.timestamp;
           if (!ts) continue;
 
           const tsIso = normalizeTimestamp(ts);
+          const tsMs = new Date(tsIso).getTime();
+          if (!Number.isNaN(tsMs)) {
+            maxSeenMs = maxSeenMs === null ? tsMs : Math.max(maxSeenMs, tsMs);
+          }
 
           const payload = entry.data as {
             chatId?: string;
@@ -117,27 +150,76 @@ timestamp > "${job.lastTimestamp}"
             payload?.chatId === chatId &&
             typeof payload?.message === "string"
           ) {
+            const insertId =
+              typeof entry.metadata.insertId === "string" &&
+              entry.metadata.insertId.trim().length > 0
+                ? entry.metadata.insertId
+                : null;
+            const dedupKey = insertId ?? `${tsIso}|${payload.message}`;
+
+            if (job.seenIds.includes(dedupKey)) {
+              continue;
+            }
+            ringPush(job.seenIds, dedupKey, LOG_POLL_CONFIG.DEDUP_RING_SIZE);
+
             await broadCastLog(chatId, sessionId, payload.message, {
               step: resolveStepFromJobName(job.jobName),
               source: `cloud_run_job:${job.jobName}`,
             });
 
-            // advance cursor
-            job.lastTimestamp = new Date(
-              new Date(tsIso).getTime() + 1,
-            ).toISOString();
+            job.lastEmittedAt = new Date().toISOString();
 
             if (TERMINAL_STATUSES.has(payload.message)) {
-              activeJobs.delete(chatId);
-              resolve();
-              return;
+              job.terminalSeenAt ??= new Date().toISOString();
             }
+          }
+        }
+
+        if (maxSeenMs !== null) {
+          const nextCursorIso = toIso(new Date(maxSeenMs + 1));
+          const currentCursor = safeDate(job.lastTimestamp)?.getTime() ?? 0;
+          if (maxSeenMs + 1 > currentCursor) {
+            job.lastTimestamp = nextCursorIso;
+          }
+        }
+
+        if (job.completedAt) {
+          const completedMs = safeDate(job.completedAt)?.getTime() ?? 0;
+          const drainDeadlineMs =
+            completedMs + LOG_POLL_CONFIG.MAX_DRAIN_MS;
+
+          const nowMs = Date.now();
+          if (nowMs >= drainDeadlineMs) {
+            activeJobs.delete(chatId);
+            resolve();
+            return;
+          }
+
+          const lastEmittedMs = job.lastEmittedAt
+            ? safeDate(job.lastEmittedAt)?.getTime() ?? completedMs
+            : completedMs;
+
+          const terminalSeenMs = job.terminalSeenAt
+            ? safeDate(job.terminalSeenAt)?.getTime() ?? 0
+            : 0;
+
+          const tailSatisfied =
+            terminalSeenMs === 0 ||
+            nowMs - terminalSeenMs >= LOG_POLL_CONFIG.TAIL_AFTER_TERMINAL_MS;
+
+          const idleSatisfied =
+            nowMs - lastEmittedMs >= LOG_POLL_CONFIG.IDLE_MS;
+
+          if (tailSatisfied && idleSatisfied) {
+            activeJobs.delete(chatId);
+            resolve();
+            return;
           }
         }
       } catch (err) {
         console.error("pollLogs error", err);
       }
-      setTimeout(loop, 1000);
+      setTimeout(loop, LOG_POLL_CONFIG.POLL_INTERVAL_MS);
     }
 
     void loop();
