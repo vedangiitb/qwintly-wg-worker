@@ -18,10 +18,12 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "google-auth-library": "^10.6.2",
+    "jsonwebtoken": "^9.0.3",
     "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.26",
     "@types/ws": "^8.5.10",
     "tsx": "^4.21.0",

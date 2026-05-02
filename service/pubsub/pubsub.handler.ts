@@ -3,6 +3,7 @@ import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 import { getQwintlyCore } from "../core/qwintlyCore.service.js";
 import { startGenerationSession } from "../statusService/genSession.service.js";
+import jwt from "jsonwebtoken";
 
 class InvalidPayloadError extends Error {
   constructor(message: string) {
@@ -26,14 +27,33 @@ export async function handleWorkerRequest(
 
   try {
     const payload = JSON.parse(rawPayload) as {
-      chatId?: unknown;
-      planId?: unknown;
-      requestType?: unknown;
+      jobToken?: unknown;
     };
+    const jobToken = normalizeString(payload?.jobToken);
 
-    chatId = normalizeString(payload?.chatId);
-    const planId = normalizeString(payload?.planId);
-    const requestType = normalizeString(payload?.requestType);
+    if (!jobToken) {
+      throw new InvalidPayloadError("Missing jobToken");
+    }
+
+    let tokenPayload: {
+      userId: string;
+      provider: string;
+      chatId: string;
+      planId: string;
+      requestType: string;
+    };
+    try {
+      tokenPayload = jwt.verify(
+        jobToken,
+        process.env.PUBLISH_SECRET!,
+      ) as typeof tokenPayload;
+    } catch (err) {
+      throw new InvalidPayloadError("Invalid or expired token");
+    }
+
+    chatId = normalizeString(tokenPayload.chatId);
+    const planId = normalizeString(tokenPayload.planId);
+    const requestType = normalizeString(tokenPayload.requestType);
 
     if (!chatId || !planId || !requestType) {
       throw new InvalidPayloadError("Missing chatId or planId in payload");
@@ -54,7 +74,15 @@ export async function handleWorkerRequest(
 
     await core.streamLog("Initializing session", EVENT_TYPES.STEP_STARTED);
 
-    void startWorkerFlow(ctx, chatId, genId, planId, requestType, core);
+    void startWorkerFlow(
+      ctx,
+      chatId,
+      genId,
+      planId,
+      requestType,
+      core,
+      jobToken,
+    );
 
     return { status: "ok" };
   } catch (err) {

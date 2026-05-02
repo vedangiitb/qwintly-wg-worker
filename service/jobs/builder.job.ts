@@ -8,6 +8,7 @@ export async function runBuilderJob(
   sessionId: string,
   planId: string,
   requestType: string,
+  jobToken: string,
   logger: (message: string, eventType: EventType) => Promise<void>,
 ) {
   const jobParams = {
@@ -15,6 +16,7 @@ export async function runBuilderJob(
     SESSION_ID: sessionId,
     TASKS_PLAN_ID: planId,
     REQUEST_TYPE: requestType,
+    JOB_TOKEN: jobToken,
   };
 
   const request = {

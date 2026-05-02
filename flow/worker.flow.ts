@@ -14,6 +14,7 @@ export async function startWorkerFlow(
   planId: string,
   requestType: string,
   core: QwintlyCore,
+  jobToken: string,
 ) {
   let success = false;
   try {
@@ -34,7 +35,8 @@ export async function startWorkerFlow(
         sessionId,
         planId,
         requestType,
-        core.streamLog,
+        jobToken,
+        core.streamLog.bind(core),
       );
 
       await core.streamLog(
@@ -42,7 +44,14 @@ export async function startWorkerFlow(
         EVENT_TYPES.STEP_FINISHED,
       );
 
-      await runDeployerJob(ctx, chatId, sessionId, requestType, core.streamLog);
+      await runDeployerJob(
+        ctx,
+        chatId,
+        sessionId,
+        requestType,
+        jobToken,
+        core.streamLog.bind(core),
+      );
 
       await core.streamLog("Deployment successful", EVENT_TYPES.STEP_FINISHED);
       await core.streamLog("SUCCESS", EVENT_TYPES.GENERATION_COMPLETED);
