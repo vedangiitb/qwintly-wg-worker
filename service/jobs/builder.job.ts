@@ -4,18 +4,12 @@ import { WorkerContext } from "../../worker/workerContext.js";
 
 export async function runBuilderJob(
   ctx: WorkerContext,
-  chatId: string,
   sessionId: string,
-  planId: string,
-  requestType: string,
   jobToken: string,
   logger: (message: string, eventType: EventType) => Promise<void>,
 ) {
   const jobParams = {
-    CHAT_ID: chatId,
     SESSION_ID: sessionId,
-    TASKS_PLAN_ID: planId,
-    REQUEST_TYPE: requestType,
     JOB_TOKEN: jobToken,
   };
 
@@ -42,6 +36,5 @@ export async function runBuilderJob(
 
   await logger(`Builder Cloud Run Job started`, EVENT_TYPES.STEP_STARTED);
 
-  // Wait for the builder Cloud Run job to finish (authoritative signal).
   await operation.promise();
 }

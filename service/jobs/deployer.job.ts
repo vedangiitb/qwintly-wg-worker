@@ -6,14 +6,11 @@ export async function runDeployerJob(
   ctx: WorkerContext,
   chatId: string,
   sessionId: string,
-  requestType: string,
   jobToken: string,
   logger: (message: string, eventType: EventType) => Promise<void>,
 ) {
   const jobParams = {
-    CHAT_ID: chatId,
     SESSION_ID: sessionId,
-    REQUEST_TYPE: requestType,
     JOB_TOKEN: jobToken,
   };
 

@@ -29,15 +29,7 @@ export async function startWorkerFlow(
         core.streamLog(message, EVENT_TYPES.STEP_STARTED);
       });
     } else {
-      await runBuilderJob(
-        ctx,
-        chatId,
-        sessionId,
-        planId,
-        requestType,
-        jobToken,
-        core.streamLog.bind(core),
-      );
+      await runBuilderJob(ctx, sessionId, jobToken, core.streamLog.bind(core));
 
       await core.streamLog(
         "Builder completed. Starting deployer job",
@@ -48,7 +40,6 @@ export async function startWorkerFlow(
         ctx,
         chatId,
         sessionId,
-        requestType,
         jobToken,
         core.streamLog.bind(core),
       );
