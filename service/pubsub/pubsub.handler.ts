@@ -1,8 +1,10 @@
 import { startWorkerFlow } from "../../flow/worker.flow.js";
 import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
-import { broadCastLog } from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
+import { getQwintlyCore } from "../core/qwintlyCore.service.js";
+import { checkKeyExists } from "../keyService/keyService.service.js";
 import { startGenerationSession } from "../statusService/genSession.service.js";
+import jwt from "jsonwebtoken";
 
 class InvalidPayloadError extends Error {
   constructor(message: string) {
@@ -26,43 +28,69 @@ export async function handleWorkerRequest(
 
   try {
     const payload = JSON.parse(rawPayload) as {
-      chatId?: unknown;
-      planId?: unknown;
-      requestType?: unknown;
+      jobToken?: unknown;
     };
+    const jobToken = normalizeString(payload?.jobToken);
 
-    chatId = normalizeString(payload?.chatId);
-    const planId = normalizeString(payload?.planId);
-    const requestType = normalizeString(payload?.requestType);
+    if (!jobToken) {
+      throw new InvalidPayloadError("Missing jobToken");
+    }
+
+    let tokenPayload: {
+      userId: string;
+      provider: string;
+      chatId: string;
+      planId: string;
+      requestType: string;
+    };
+    try {
+      tokenPayload = jwt.verify(
+        jobToken,
+        process.env.PUBLISH_SECRET!,
+      ) as typeof tokenPayload;
+    } catch (err) {
+      throw new InvalidPayloadError("Invalid or expired token");
+    }
+
+    chatId = normalizeString(tokenPayload.chatId);
+    const planId = normalizeString(tokenPayload.planId);
+    const requestType = normalizeString(tokenPayload.requestType);
+    const provider = normalizeString(tokenPayload.provider);
+    const userId = normalizeString(tokenPayload.userId);
 
     if (!chatId || !planId || !requestType) {
       throw new InvalidPayloadError("Missing chatId or planId in payload");
     }
 
-    genId = await startGenerationSession(chatId,planId);
+    genId = await startGenerationSession(chatId, planId);
 
     if (!genId) {
       throw new Error("Failed to generate genId");
     }
 
-    await broadCastLog(chatId, genId, "Initializing session", {
-      eventType: EVENT_TYPES.STEP_STARTED,
+    const core = getQwintlyCore({
+      chatId,
+      sessionId: genId,
+      workspace: "test",
       step: GEN_STEPS.INITIATING,
-      source: "pubsub",
     });
 
-    void startWorkerFlow(ctx, chatId, genId, planId, requestType);
+    await checkKeyExists(userId, provider);
+
+    await core.streamLog("Initializing session", EVENT_TYPES.STEP_STARTED);
+
+    void startWorkerFlow(
+      ctx,
+      chatId,
+      genId,
+      planId,
+      requestType,
+      core,
+      jobToken,
+    );
 
     return { status: "ok" };
   } catch (err) {
-    if (err instanceof Error && chatId) {
-      await broadCastLog(chatId, genId, `PubSub error: ${err.message}`, {
-        eventType: EVENT_TYPES.STEP_ERROR,
-        step: GEN_STEPS.INITIATING,
-        source: "pubsub",
-      });
-    }
-
     if (err instanceof InvalidPayloadError || err instanceof SyntaxError) {
       return { status: "invalid_payload", error: err as Error };
     }

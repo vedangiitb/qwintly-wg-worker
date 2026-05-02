@@ -1,10 +1,10 @@
+import { QwintlyCore } from "@vedangiitb/qwintly-core";
 import { runBuilderJob } from "../service/jobs/builder.job.js";
 import { runDeployerJob } from "../service/jobs/deployer.job.js";
 import { finishGenerationSession } from "../service/statusService/genSession.service.js";
 import { spawnLocalBuilder } from "../spawnLocalBuilder.js";
-import { EVENT_TYPES, GEN_STEPS } from "../types/events.js";
+import { EVENT_TYPES } from "../types/events.js";
 import { ProjectRequestType } from "../types/request.types.js";
-import { broadCastLog } from "../utils/logger.js";
 import { WorkerContext } from "../worker/workerContext.js";
 
 export async function startWorkerFlow(
@@ -13,8 +13,9 @@ export async function startWorkerFlow(
   sessionId: string,
   planId: string,
   requestType: string,
+  core: QwintlyCore,
+  jobToken: string,
 ) {
-  let step = GEN_STEPS.INITIATING;
   let success = false;
   try {
     if (
@@ -23,54 +24,34 @@ export async function startWorkerFlow(
     ) {
       throw new Error("Invalid request type");
     }
-    step = GEN_STEPS.BUILDING;
     if (process.env.LOCAL_MODE === "true") {
       await spawnLocalBuilder(chatId, (sid, message) => {
-        void broadCastLog(sid, sessionId, message, {
-          step: GEN_STEPS.BUILDING,
-          source: "local_builder",
-        });
+        core.streamLog(message, EVENT_TYPES.STEP_STARTED);
       });
     } else {
-      await runBuilderJob(ctx, chatId, sessionId, planId, requestType);
+      await runBuilderJob(ctx, sessionId, jobToken, core.streamLog.bind(core));
 
-      await broadCastLog(
-        chatId,
-        sessionId,
+      await core.streamLog(
         "Builder completed. Starting deployer job",
-        {
-          eventType: EVENT_TYPES.STEP_FINISHED,
-          step: step,
-          source: "worker",
-        },
+        EVENT_TYPES.STEP_FINISHED,
       );
 
-      step = GEN_STEPS.DEPLOYING;
+      await runDeployerJob(
+        ctx,
+        chatId,
+        sessionId,
+        jobToken,
+        core.streamLog.bind(core),
+      );
 
-      await runDeployerJob(ctx, chatId, sessionId, requestType);
-
-      await broadCastLog(chatId, sessionId, "Deployment successful", {
-        eventType: EVENT_TYPES.STEP_FINISHED,
-        step: step,
-        source: "worker",
-      });
-      await broadCastLog(chatId, sessionId, "SUCCESS", {
-        eventType: EVENT_TYPES.GENERATION_COMPLETED,
-        step: step,
-        source: "worker",
-      });
+      await core.streamLog("Deployment successful", EVENT_TYPES.STEP_FINISHED);
+      await core.streamLog("SUCCESS", EVENT_TYPES.GENERATION_COMPLETED);
     }
     success = true;
   } catch (err) {
-    await broadCastLog(
-      chatId,
-      sessionId,
+    await core.streamLog(
       `Pipeline failed: ${(err as Error).message}`,
-      {
-        eventType: EVENT_TYPES.GENERATION_FAILED,
-        step: step,
-        source: "worker_flow",
-      },
+      EVENT_TYPES.GENERATION_FAILED,
     );
   } finally {
     await finishGenerationSession(chatId, sessionId, planId, success);

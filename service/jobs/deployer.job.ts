@@ -1,18 +1,17 @@
 import { jobsClient } from "../../config/jobsClient.config.js";
-import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
-import { activeJobs, broadCastLog, pollLogs } from "../../utils/logger.js";
+import { EVENT_TYPES, EventType } from "../../types/events.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 
 export async function runDeployerJob(
   ctx: WorkerContext,
   chatId: string,
   sessionId: string,
-  requestType: string,
+  jobToken: string,
+  logger: (message: string, eventType: EventType) => Promise<void>,
 ) {
   const jobParams = {
-    CHAT_ID: chatId,
     SESSION_ID: sessionId,
-    REQUEST_TYPE: requestType,
+    JOB_TOKEN: jobToken,
   };
 
   const request = {
@@ -30,31 +29,11 @@ export async function runDeployerJob(
     },
   };
 
-  await broadCastLog(chatId, sessionId, "Starting Deployer Job", {
-    eventType: EVENT_TYPES.STEP_STARTED,
-    step: GEN_STEPS.DEPLOYING,
-    source: "worker",
-  });
+  await logger(`Starting Deployer Cloud Run Job`, EVENT_TYPES.STEP_STARTED);
+
   const [operation] = await jobsClient.runJob(request);
-  activeJobs.set(chatId, {
-    lastTimestamp: new Date().toISOString(),
-    jobName: ctx.deployerJob,
-  });
 
-  await broadCastLog(chatId, sessionId, "Deployer Cloud Run Job started", {
-    eventType: EVENT_TYPES.STEP_STARTED,
-    step: GEN_STEPS.DEPLOYING,
-    source: "worker",
-  });
+  await logger(`Deployer Cloud Run Job started`, EVENT_TYPES.STEP_STARTED);
 
-  const logsComplete = pollLogs(chatId, sessionId);
-
-  try {
-    await operation.promise();
-  } finally {
-    // Give the poller up to 10 seconds to drain remaining logs before cleaning up.
-    const LOG_DRAIN_TIMEOUT_MS = 10_000;
-    await Promise.race([logsComplete, new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS))]);
-    activeJobs.delete(chatId);
-  }
+  await operation.promise();
 }

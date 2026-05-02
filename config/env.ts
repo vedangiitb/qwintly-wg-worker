@@ -11,3 +11,5 @@ export const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 export const PUBSUB_PUSH_AUDIENCE =
   process.env.PUBSUB_PUSH_AUDIENCE + "/pubsub/push";
+export const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL_GEN_EVENTS;
+export const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN_GEN_EVENTS;

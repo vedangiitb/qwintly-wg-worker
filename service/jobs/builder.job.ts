@@ -1,20 +1,16 @@
+import { EVENT_TYPES, EventType } from "@vedangiitb/qwintly-core";
 import { jobsClient } from "../../config/jobsClient.config.js";
-import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
-import { activeJobs, broadCastLog, pollLogs } from "../../utils/logger.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 
 export async function runBuilderJob(
   ctx: WorkerContext,
-  chatId: string,
   sessionId: string,
-  planId: string,
-  requestType: string,
+  jobToken: string,
+  logger: (message: string, eventType: EventType) => Promise<void>,
 ) {
   const jobParams = {
-    CHAT_ID: chatId,
     SESSION_ID: sessionId,
-    TASKS_PLAN_ID: planId,
-    REQUEST_TYPE: requestType,
+    JOB_TOKEN: jobToken,
   };
 
   const request = {
@@ -34,40 +30,11 @@ export async function runBuilderJob(
     },
   };
 
-  console.log(chatId, `Starting Builder Cloud Run Job for session ${chatId}`);
-  await broadCastLog(chatId, sessionId, "Starting Builder Job", {
-    eventType: EVENT_TYPES.STEP_STARTED,
-    step: GEN_STEPS.BUILDING,
-    source: "worker",
-  });
+  await logger(`Starting Builder Cloud Run Job`, EVENT_TYPES.STEP_STARTED);
 
   const [operation] = await jobsClient.runJob(request);
 
-  activeJobs.set(chatId, {
-    lastTimestamp: new Date().toISOString(),
-    jobName: ctx.builderJob,
-  });
+  await logger(`Builder Cloud Run Job started`, EVENT_TYPES.STEP_STARTED);
 
-  console.log(chatId, `Builder Cloud Run Job started for session ${chatId}`);
-
-  await broadCastLog(chatId, sessionId, "Builder Cloud Run Job started", {
-    eventType: EVENT_TYPES.STEP_STARTED,
-    step: GEN_STEPS.BUILDING,
-    source: "worker",
-  });
-
-  // Start polling logs — returns a Promise that resolves when a terminal
-  // status is seen (SUCCESS/ERROR/FAILED) or the 10s drain window expires.
-  const logsComplete = pollLogs(chatId, sessionId);
-
-  // Wait for the builder Cloud Run job to finish (authoritative signal).
   await operation.promise();
-
-  // Give the poller up to 10 seconds to keep fetching and broadcasting any
-  // remaining logs. activeJobs is NOT deleted yet so the poller stays active.
-  const LOG_DRAIN_TIMEOUT_MS = 10_000;
-  await Promise.race([logsComplete, new Promise<void>((r) => setTimeout(r, LOG_DRAIN_TIMEOUT_MS))]);
-
-  // Clean up after drain — stops the poller if it's still running.
-  activeJobs.delete(chatId);
 }
