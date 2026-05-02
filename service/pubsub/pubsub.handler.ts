@@ -2,6 +2,7 @@ import { startWorkerFlow } from "../../flow/worker.flow.js";
 import { EVENT_TYPES, GEN_STEPS } from "../../types/events.js";
 import { WorkerContext } from "../../worker/workerContext.js";
 import { getQwintlyCore } from "../core/qwintlyCore.service.js";
+import { checkKeyExists } from "../keyService/keyService.service.js";
 import { startGenerationSession } from "../statusService/genSession.service.js";
 import jwt from "jsonwebtoken";
 
@@ -54,6 +55,8 @@ export async function handleWorkerRequest(
     chatId = normalizeString(tokenPayload.chatId);
     const planId = normalizeString(tokenPayload.planId);
     const requestType = normalizeString(tokenPayload.requestType);
+    const provider = normalizeString(tokenPayload.provider);
+    const userId = normalizeString(tokenPayload.userId);
 
     if (!chatId || !planId || !requestType) {
       throw new InvalidPayloadError("Missing chatId or planId in payload");
@@ -71,6 +74,8 @@ export async function handleWorkerRequest(
       workspace: "test",
       step: GEN_STEPS.INITIATING,
     });
+
+    await checkKeyExists(userId, provider);
 
     await core.streamLog("Initializing session", EVENT_TYPES.STEP_STARTED);
 
