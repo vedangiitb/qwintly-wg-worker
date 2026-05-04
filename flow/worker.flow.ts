@@ -43,9 +43,6 @@ export async function startWorkerFlow(
         jobToken,
         core.streamLog.bind(core),
       );
-
-      await core.streamLog("Deployment successful", EVENT_TYPES.STEP_FINISHED);
-      await core.streamLog("SUCCESS", EVENT_TYPES.GENERATION_COMPLETED);
     }
     success = true;
   } catch (err) {
