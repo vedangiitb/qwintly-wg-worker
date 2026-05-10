@@ -74,6 +74,10 @@ export function makePubsubHandler({
 
       return res.status(204).send();
     } catch (err) {
+      await core.streamLog(
+        "Failed to start job",
+        EVENT_TYPES.GENERATION_FAILED,
+      );
       console.error("Pub/Sub handling error", err);
       await finishGenerationSession(
         payload.chatId,
