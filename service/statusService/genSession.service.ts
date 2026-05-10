@@ -6,29 +6,6 @@ const assertNonEmpty = (value: string, field: string): void => {
   }
 };
 
-export const startGenerationSession = async (
-  chatId: string,
-  planId: string,
-): Promise<string> => {
-  assertNonEmpty(chatId, "chatId");
-  assertNonEmpty(planId, "planId");
-
-  const { data, error } = await supabase.rpc("start_generation_session", {
-    p_conv_id: chatId,
-    p_plan_id: planId,
-  });
-
-  if (error) {
-    throw new Error(`Failed to start generation session: ${error.message}`);
-  }
-
-  if (!data) {
-    throw new Error("Failed to start generation session: empty response");
-  }
-
-  return data;
-};
-
 export const finishGenerationSession = async (
   chatId: string,
   genId: string,

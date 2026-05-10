@@ -1,40 +1,44 @@
 import { EVENT_TYPES, EventType } from "@vedangiitb/qwintly-core";
 import { jobsClient } from "../../config/jobsClient.config.js";
-import { WorkerContext } from "../../worker/workerContext.js";
+import { JobParams } from "../../types/jobParams.types.js";
 
 export async function runBuilderJob(
-  ctx: WorkerContext,
-  sessionId: string,
-  jobToken: string,
+  params: JobParams,
   logger: (message: string, eventType: EventType) => Promise<void>,
 ) {
-  const jobParams = {
-    SESSION_ID: sessionId,
-    JOB_TOKEN: jobToken,
-  };
+  try {
+    const jobParams = {
+      SESSION_ID: params.sessionId,
+      JOB_TOKEN: params.jobToken,
+    };
 
-  const request = {
-    name: ctx.builderJobResource,
-    overrides: {
-      labels: {
-        pipeline: "builder",
-      },
-      containerOverrides: [
-        {
-          env: Object.entries(jobParams).map(([name, value]) => ({
-            name,
-            value: String(value),
-          })),
+    const request = {
+      name: params.ctx.builderJobResource,
+      overrides: {
+        labels: {
+          pipeline: "builder",
         },
-      ],
-    },
-  };
+        containerOverrides: [
+          {
+            env: Object.entries(jobParams).map(([name, value]) => ({
+              name,
+              value: String(value),
+            })),
+          },
+        ],
+      },
+    };
 
-  await logger(`Starting Builder Cloud Run Job`, EVENT_TYPES.STEP_STARTED);
+    await logger(`Starting Generation`, EVENT_TYPES.STEP_STARTED);
 
-  const [operation] = await jobsClient.runJob(request);
+    await jobsClient.runJob(request);
 
-  await logger(`Builder Cloud Run Job started`, EVENT_TYPES.STEP_STARTED);
-
-  await operation.promise();
+    await logger(`Generation started`, EVENT_TYPES.STEP_STARTED);
+  } catch (err) {
+    await logger(
+      `Generation Failed: ${(err as Error).message}`,
+      EVENT_TYPES.GENERATION_FAILED,
+    );
+    throw err;
+  }
 }

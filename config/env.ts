@@ -13,3 +13,7 @@ export const PUBSUB_PUSH_AUDIENCE =
   process.env.PUBSUB_PUSH_AUDIENCE + "/pubsub/push";
 export const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL_GEN_EVENTS;
 export const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN_GEN_EVENTS;
+export const PUBSUB_PUSH_AUDIENCE_GEN =
+  process.env.PUBSUB_PUSH_AUDIENCE + "pubsub/generate";
+export const PUBSUB_PUSH_AUDIENCE_DEPLOY =
+  process.env.PUBSUB_PUSH_AUDIENCE + "pubsub/deploy";
