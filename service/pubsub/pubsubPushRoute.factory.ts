@@ -10,9 +10,10 @@ import { JobParams } from "../../types/jobParams.types.js";
 import { decodePubsubMessageData } from "../../utils/decodePubsubMessageData.utils.js";
 import type { WorkerContext } from "../../worker/workerContext.js";
 import { getQwintlyCore } from "../core/qwintlyCore.service.js";
-import { finishGenerationSession } from "../statusService/genSession.service.js";
+import { finishSession } from "../statusService/genSession.service.js";
 import { validatePayload } from "./validatePayload.js";
 import { verifyPubsubPushAuth } from "./verifyPubsubPushAuth.service.js";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 type MakePubsubHandlerParams = {
   getWorkerContext: () => WorkerContext | null | undefined;
@@ -22,6 +23,7 @@ type MakePubsubHandlerParams = {
     params: JobParams,
     logger: (message: string, eventType: EventType) => Promise<void>,
   ) => Promise<void>;
+  finishRPC: (supabase: SupabaseClient, genId: string, success: boolean) => any;
 };
 
 export function makePubsubHandler({
@@ -29,6 +31,7 @@ export function makePubsubHandler({
   authClient,
   audience,
   job,
+  finishRPC,
 }: MakePubsubHandlerParams) {
   return async (req: Request, res: Response) => {
     const ctx = getWorkerContext();
@@ -79,12 +82,7 @@ export function makePubsubHandler({
         EVENT_TYPES.GENERATION_FAILED,
       );
       console.error("Pub/Sub handling error", err);
-      await finishGenerationSession(
-        payload.chatId,
-        payload.sessionId,
-        payload.planId,
-        false,
-      );
+      await finishSession(payload.sessionId, false, finishRPC);
       return res.status(204).send();
     }
   };

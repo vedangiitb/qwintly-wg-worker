@@ -28,6 +28,11 @@ app.post(
     authClient,
     audience: PUBSUB_PUSH_AUDIENCE_GEN,
     job: runBuilderJob,
+    finishRPC: (supabase: any, genId: string, success: boolean) =>
+      supabase.rpc("finish_deployment", {
+        p_gen_id: genId,
+        p_success: success,
+      }),
   }),
 );
 
@@ -38,5 +43,10 @@ app.post(
     authClient,
     audience: PUBSUB_PUSH_AUDIENCE_DEPLOY,
     job: runDeployerJob,
+    finishRPC: (supabase: any, genId: string, success: boolean) =>
+      supabase.rpc("finish_deployment", {
+        p_gen_id: genId,
+        p_success: success,
+      }),
   }),
 );
