@@ -9,21 +9,16 @@ export async function verifyPubsubPushAuth(
   audience: string | undefined,
 ): Promise<boolean> {
   if (!audience) {
-    console.error("PUBSUB_PUSH_AUDIENCE not set");
-    res.status(500).send("Server misconfigured");
-    return false;
+    throw new Error("PUBSUB_PUSH_AUDIENCE not set");
   }
 
   const idToken = extractBearerToken(req, res);
-  if (!idToken) return false;
+  if (!idToken) throw new Error("ID token not found");
 
   try {
     await authClient.verifyIdToken({ idToken, audience });
     return true;
   } catch (err) {
-    console.error("Invalid push auth", err);
-    res.status(403).send("Forbidden");
-    return false;
+    throw new Error("Invalid push auth");
   }
 }
-

@@ -8,6 +8,10 @@ import {
 import { runBuilderJob } from "./service/jobs/builder.job.js";
 import { runDeployerJob } from "./service/jobs/deployer.job.js";
 import { makePubsubHandler } from "./service/pubsub/pubsubPushRoute.factory.js";
+import {
+  normalizeDeployerPayload,
+  normalizeGeneratePayload,
+} from "./service/pubsub/validatePayload.js";
 import { getWorkerContext, WorkerContext } from "./worker/workerContext.js";
 
 const app = express();
@@ -33,6 +37,7 @@ app.post(
         p_gen_id: genId,
         p_success: success,
       }),
+    normalizer: normalizeGeneratePayload,
   }),
 );
 
@@ -48,5 +53,6 @@ app.post(
         p_gen_id: genId,
         p_success: success,
       }),
+    normalizer: normalizeDeployerPayload,
   }),
 );

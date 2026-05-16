@@ -1,3 +1,4 @@
+import { SupabaseClient } from "@supabase/supabase-js";
 import {
   EVENT_TYPES,
   EventType,
@@ -11,9 +12,13 @@ import { decodePubsubMessageData } from "../../utils/decodePubsubMessageData.uti
 import type { WorkerContext } from "../../worker/workerContext.js";
 import { getQwintlyCore } from "../core/qwintlyCore.service.js";
 import { finishSession } from "../statusService/genSession.service.js";
-import { validatePayload } from "./validatePayload.js";
+import {
+  DeployerPayload,
+  GenPayload,
+  TokenPayload,
+  validatePayload,
+} from "./validatePayload.js";
 import { verifyPubsubPushAuth } from "./verifyPubsubPushAuth.service.js";
-import { SupabaseClient } from "@supabase/supabase-js";
 
 type MakePubsubHandlerParams = {
   getWorkerContext: () => WorkerContext | null | undefined;
@@ -24,6 +29,7 @@ type MakePubsubHandlerParams = {
     logger: (message: string, eventType: EventType) => Promise<void>,
   ) => Promise<void>;
   finishRPC: (supabase: SupabaseClient, genId: string, success: boolean) => any;
+  normalizer: (decoded: any, jobToken: string) => GenPayload | DeployerPayload;
 };
 
 export function makePubsubHandler({
@@ -32,6 +38,7 @@ export function makePubsubHandler({
   audience,
   job,
   finishRPC,
+  normalizer,
 }: MakePubsubHandlerParams) {
   return async (req: Request, res: Response) => {
     const ctx = getWorkerContext();
@@ -39,16 +46,17 @@ export function makePubsubHandler({
       return res.status(503).send("Worker not ready");
     }
 
-    const ok = await verifyPubsubPushAuth(authClient, req, res, audience);
-    if (!ok) return res.status(204).send("Forbidden");
-
-    const decoded = decodePubsubMessageData(req);
-    if (!decoded) return res.status(204).send("Invalid data");
-
-    const payload = validatePayload(decoded);
-    if (!payload) return res.status(204).send("Invalid data");
-
     let core: QwintlyCore;
+    let decoded: string;
+    let payload: GenPayload | DeployerPayload;
+
+    try {
+      decoded = decodePubsubMessageData(req);
+      payload = validatePayload(decoded, normalizer);
+    } catch (err) {
+      console.error("Pub/Sub handling error", err);
+      return res.status(204).send("Invalid payload");
+    }
 
     try {
       core = getQwintlyCore({
@@ -63,7 +71,7 @@ export function makePubsubHandler({
     }
 
     try {
-      await core.streamLog("Initializing session", EVENT_TYPES.STEP_STARTED);
+      await verifyPubsubPushAuth(authClient, req, res, audience);
 
       const jobParams: JobParams = {
         ctx,
