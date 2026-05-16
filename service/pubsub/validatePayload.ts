@@ -26,7 +26,7 @@ export type GenPayload = {
   requestType: ProjectRequestType;
   provider: string;
   model: string;
-  prevSessionId: string;
+  prevSessionId?: string;
   sessionId: string;
   jobToken: string;
 };
@@ -49,6 +49,7 @@ export const normalizeGeneratePayload = (
   decoded: any,
   jobToken: string,
 ): GenPayload => {
+  const prevSessionId = normalize(decoded.prevSessionId);
   return {
     chatId: normalize(decoded.chatId),
     planId: normalize(decoded.planId),
@@ -56,7 +57,7 @@ export const normalizeGeneratePayload = (
     requestType: normalize(decoded.requestType) as ProjectRequestType,
     provider: normalize(decoded.provider),
     model: normalize(decoded.model),
-    prevSessionId: normalize(decoded.prevSessionId),
+    ...(prevSessionId ? { prevSessionId } : {}),
     sessionId: normalize(decoded.sessionId),
     jobToken: jobToken,
   };
@@ -99,7 +100,14 @@ export const validatePayload = (
 
   const payload = normalizer(decoded, jobToken);
 
-  const hasEmptyFields = Object.values(payload).some((val) => !val);
+  const payloadForRequiredCheck =
+    "prevSessionId" in payload
+      ? (({ prevSessionId: _prevSessionId, ...rest }) => rest)(payload)
+      : payload;
+
+  const hasEmptyFields = Object.values(payloadForRequiredCheck).some(
+    (val) => !val,
+  );
   if (hasEmptyFields) {
     throw new InvalidPayloadError(
       "All payload fields are required and cannot be empty",
