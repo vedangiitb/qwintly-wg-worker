@@ -1,3 +1,4 @@
+import { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "../../config/supabase.js";
 
 const assertNonEmpty = (value: string, field: string): void => {
@@ -6,44 +7,14 @@ const assertNonEmpty = (value: string, field: string): void => {
   }
 };
 
-export const startGenerationSession = async (
-  chatId: string,
-  planId: string,
-): Promise<string> => {
-  assertNonEmpty(chatId, "chatId");
-  assertNonEmpty(planId, "planId");
-
-  const { data, error } = await supabase.rpc("start_generation_session", {
-    p_conv_id: chatId,
-    p_plan_id: planId,
-  });
-
-  if (error) {
-    throw new Error(`Failed to start generation session: ${error.message}`);
-  }
-
-  if (!data) {
-    throw new Error("Failed to start generation session: empty response");
-  }
-
-  return data;
-};
-
-export const finishGenerationSession = async (
-  chatId: string,
+export const finishSession = async (
   genId: string,
-  planId: string,
   success: boolean,
+  rpc: (supabase: SupabaseClient, genId: string, success: boolean) => any,
 ) => {
-  assertNonEmpty(chatId, "chatId");
   assertNonEmpty(genId, "genId");
 
-  const { error } = await supabase.rpc("finish_generation_session", {
-    p_conv_id: chatId,
-    p_gen_id: genId,
-    p_plan_id: planId,
-    p_success: success,
-  });
+  const { error } = await rpc(supabase, genId, success);
 
   if (error) {
     throw new Error(`Failed to finish generation session: ${error.message}`);

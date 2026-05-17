@@ -1,39 +1,41 @@
 import { jobsClient } from "../../config/jobsClient.config.js";
 import { EVENT_TYPES, EventType } from "../../types/events.js";
-import { WorkerContext } from "../../worker/workerContext.js";
+import { JobParams } from "../../types/jobParams.types.js";
 
 export async function runDeployerJob(
-  ctx: WorkerContext,
-  chatId: string,
-  sessionId: string,
-  jobToken: string,
+  params: JobParams,
   logger: (message: string, eventType: EventType) => Promise<void>,
 ) {
-  const jobParams = {
-    SESSION_ID: sessionId,
-    JOB_TOKEN: jobToken,
-  };
+  try {
+    const jobParams = {
+      SESSION_ID: params.sessionId,
+      JOB_TOKEN: params.jobToken,
+    };
+    const request = {
+      name: params.ctx.deployerJobResource,
+      executionSuffix: params.chatId,
+      overrides: {
+        containerOverrides: [
+          {
+            env: Object.entries(jobParams).map(([name, value]) => ({
+              name,
+              value: String(value),
+            })),
+          },
+        ],
+      },
+    };
 
-  const request = {
-    name: ctx.deployerJobResource,
-    executionSuffix: chatId,
-    overrides: {
-      containerOverrides: [
-        {
-          env: Object.entries(jobParams).map(([name, value]) => ({
-            name,
-            value: String(value),
-          })),
-        },
-      ],
-    },
-  };
+    await logger(`Starting Deploying application`, EVENT_TYPES.STEP_STARTED);
 
-  await logger(`Starting Deployer Cloud Run Job`, EVENT_TYPES.STEP_STARTED);
+    await jobsClient.runJob(request);
 
-  const [operation] = await jobsClient.runJob(request);
-
-  await logger(`Deployer Cloud Run Job started`, EVENT_TYPES.STEP_STARTED);
-
-  await operation.promise();
+    await logger(`Deployment Started`, EVENT_TYPES.STEP_STARTED);
+  } catch (err) {
+    await logger(
+      `Failed Deploying application: ${(err as Error).message}`,
+      EVENT_TYPES.GENERATION_FAILED,
+    );
+    throw err;
+  }
 }
