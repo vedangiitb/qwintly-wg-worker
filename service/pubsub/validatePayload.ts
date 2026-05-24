@@ -29,6 +29,7 @@ export type GenPayload = {
   prevSessionId?: string;
   sessionId: string;
   jobToken: string;
+  byokEnabled: boolean;
 };
 
 export type DeployerPayload = {
@@ -40,9 +41,23 @@ export type DeployerPayload = {
   sessionId: string;
   snapshotId: string;
   jobToken: string;
+  byokEnabled: boolean;
 };
 const normalize = (value: unknown): string => {
   return typeof value === "string" ? value.trim() : "";
+};
+
+const normalizeBoolean = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") {
+    throw new InvalidPayloadError("Invalid byokEnabled value");
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+
+  throw new InvalidPayloadError("Invalid byokEnabled value");
 };
 
 export const normalizeGeneratePayload = (
@@ -60,6 +75,7 @@ export const normalizeGeneratePayload = (
     ...(prevSessionId ? { prevSessionId } : {}),
     sessionId: normalize(decoded.sessionId),
     jobToken: jobToken,
+    byokEnabled: normalizeBoolean(decoded.byokEnabled),
   };
 };
 
@@ -75,6 +91,7 @@ export const normalizeDeployerPayload = (
   sessionId: normalize(decoded.sessionId),
   snapshotId: normalize(decoded.snapshotId),
   jobToken: jobToken,
+  byokEnabled: normalizeBoolean(decoded.byokEnabled),
 });
 
 export const validatePayload = (
@@ -105,9 +122,11 @@ export const validatePayload = (
       ? (({ prevSessionId: _prevSessionId, ...rest }) => rest)(payload)
       : payload;
 
-  const hasEmptyFields = Object.values(payloadForRequiredCheck).some(
-    (val) => !val,
-  );
+  const hasEmptyFields = Object.values(payloadForRequiredCheck).some((val) => {
+    if (val === null || val === undefined) return true;
+    if (typeof val === "string") return val.trim().length === 0;
+    return false;
+  });
   if (hasEmptyFields) {
     throw new InvalidPayloadError(
       "All payload fields are required and cannot be empty",
