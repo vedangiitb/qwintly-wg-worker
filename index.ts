@@ -15,6 +15,7 @@ import {
 import { getWorkerContext, WorkerContext } from "./worker/workerContext.js";
 
 const app = express();
+app.disable("x-powered-by");
 app.use(express.json());
 app.get("/", (_req, res) => res.status(200).send("ok"));
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
