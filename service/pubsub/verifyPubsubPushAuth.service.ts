@@ -15,10 +15,6 @@ export async function verifyPubsubPushAuth(
   const idToken = extractBearerToken(req, res);
   if (!idToken) throw new Error("ID token not found");
 
-  try {
-    await authClient.verifyIdToken({ idToken, audience });
-    return true;
-  } catch (err) {
-    throw new Error("Invalid push auth");
-  }
+  await authClient.verifyIdToken({ idToken, audience });
+  return true;
 }

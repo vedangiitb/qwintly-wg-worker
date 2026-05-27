@@ -24,9 +24,7 @@ export function createWorkerContext() {
   };
 }
 export function getWorkerContext(): WorkerContext {
-  if (!cachedJobContext) {
-    cachedJobContext = createWorkerContext();
-  }
+  cachedJobContext ??= createWorkerContext();
 
   return cachedJobContext;
 }
