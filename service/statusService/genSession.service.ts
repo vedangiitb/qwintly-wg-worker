@@ -2,7 +2,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "../../config/supabase.js";
 
 const assertNonEmpty = (value: string, field: string): void => {
-  if (!value || !value.trim()) {
+  if (!value?.trim()) {
     throw new Error(`\`${field}\` must be a non-empty string`);
   }
 };

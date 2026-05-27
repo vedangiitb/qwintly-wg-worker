@@ -9,11 +9,9 @@ RUN npm ci
 # copy source
 COPY . .
 
-# build TypeScript
-RUN npm run build
-
-# remove dev dependencies
-RUN npm prune --omit=dev
+# build TypeScript and remove dev dependencies
+RUN npm run build && \
+    npm prune --omit=dev
 
 ENV NODE_ENV=production
 ENV PORT=8080

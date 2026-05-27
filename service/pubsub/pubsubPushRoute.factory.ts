@@ -15,7 +15,6 @@ import { finishSession } from "../statusService/genSession.service.js";
 import {
   DeployerPayload,
   GenPayload,
-  TokenPayload,
   validatePayload,
 } from "./validatePayload.js";
 import { verifyPubsubPushAuth } from "./verifyPubsubPushAuth.service.js";
