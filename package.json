@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@google-cloud/logging": "^11.2.1",
@@ -27,9 +29,11 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.26",
     "@types/ws": "^8.5.10",
+    "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^9.39.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.62.1"
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^4.1.9"
   }
 }

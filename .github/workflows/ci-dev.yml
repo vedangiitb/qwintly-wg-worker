@@ -40,6 +40,9 @@ jobs:
       - name: Run Linter
         run: npm run lint
 
+      - name: Run Tests & Coverage
+        run: npm run test:coverage
+
       - name: Type Check (TypeScript)
         run: npx tsc --noEmit --ignore-scripts
 
