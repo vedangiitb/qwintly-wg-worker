@@ -24,7 +24,7 @@ export const server = app.listen(PORT, () =>
 );
 
 const authClient = new OAuth2Client();
-let workerCtx: WorkerContext = getWorkerContext();
+const workerCtx: WorkerContext = getWorkerContext();
 
 app.post(
   "/pubsub/generate",
