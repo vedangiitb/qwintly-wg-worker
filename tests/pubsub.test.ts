@@ -133,7 +133,7 @@ describe("validatePayload", () => {
   });
 
   it("should validate and return payload", () => {
-    vi.mocked(jwt.verify).mockReturnValue({ chatId: "chat-123" });
+    (vi.mocked(jwt.verify) as any).mockReturnValue({ chatId: "chat-123" });
     const rawPayload = JSON.stringify({ jobToken: "mock-token" });
 
     const result = validatePayload(rawPayload, normalizer);
@@ -150,7 +150,7 @@ describe("validatePayload", () => {
   });
 
   it("should throw if normalizer yields empty values", () => {
-    vi.mocked(jwt.verify).mockReturnValue({ chatId: "  " }); // Empty string normalized
+    (vi.mocked(jwt.verify) as any).mockReturnValue({ chatId: "  " }); // Empty string normalized
     const rawPayload = JSON.stringify({ jobToken: "mock-token" });
 
     expect(() => validatePayload(rawPayload, normalizer)).toThrow(
@@ -159,7 +159,7 @@ describe("validatePayload", () => {
   });
 
   it("should validate deployer payload successfully (does not have prevSessionId)", () => {
-    vi.mocked(jwt.verify).mockReturnValue({
+    (vi.mocked(jwt.verify) as any).mockReturnValue({
       chatId: "chat-1",
       planId: "plan-2",
       userId: "user-3",
@@ -177,7 +177,7 @@ describe("validatePayload", () => {
   });
 
   it("should throw if validatePayload encounters null or undefined field", () => {
-    vi.mocked(jwt.verify).mockReturnValue({
+    (vi.mocked(jwt.verify) as any).mockReturnValue({
       chatId: "chat-1",
       planId: null, // null value
       userId: "user-3",
@@ -195,7 +195,7 @@ describe("validatePayload", () => {
   });
 
   it("should successfully pass non-string fields like byokEnabled in validatePayload check", () => {
-    vi.mocked(jwt.verify).mockReturnValue({
+    (vi.mocked(jwt.verify) as any).mockReturnValue({
       chatId: "chat-1",
       planId: "plan-2",
       userId: "user-3",
@@ -305,7 +305,7 @@ describe("makePubsubHandler", () => {
   it("should return 500 if qwintly core service construction fails", async () => {
     mockGetWorkerContext.mockReturnValue({});
     vi.spyOn(decodeUtils, "decodePubsubMessageData").mockReturnValue(JSON.stringify({ jobToken: "tok" }));
-    vi.mocked(jwt.verify).mockReturnValue({ chatId: "chat-1", sessionId: "sess-2", jobToken: "tok", byokEnabled: false });
+    (vi.mocked(jwt.verify) as any).mockReturnValue({ chatId: "chat-1", sessionId: "sess-2", jobToken: "tok", byokEnabled: false });
 
     // Mock validatePayload using the actual imported function and normalizer
     const customNormalizer = (decoded: any, jobToken: string) => ({
@@ -339,7 +339,7 @@ describe("makePubsubHandler", () => {
   it("should run job successfully and return 204", async () => {
     mockGetWorkerContext.mockReturnValue({ test: "ctx" });
     vi.spyOn(decodeUtils, "decodePubsubMessageData").mockReturnValue(JSON.stringify({ jobToken: "tok" }));
-    vi.mocked(jwt.verify).mockReturnValue({ chatId: "chat-1", sessionId: "sess-2", jobToken: "tok", byokEnabled: false });
+    (vi.mocked(jwt.verify) as any).mockReturnValue({ chatId: "chat-1", sessionId: "sess-2", jobToken: "tok", byokEnabled: false });
 
     const customNormalizer = (decoded: any, jobToken: string) => ({
       chatId: decoded.chatId,
@@ -379,7 +379,7 @@ describe("makePubsubHandler", () => {
   it("should log error, finish session, and return 204 if job or auth fails", async () => {
     mockGetWorkerContext.mockReturnValue({ test: "ctx" });
     vi.spyOn(decodeUtils, "decodePubsubMessageData").mockReturnValue(JSON.stringify({ jobToken: "tok" }));
-    vi.mocked(jwt.verify).mockReturnValue({ chatId: "chat-1", sessionId: "sess-2", jobToken: "tok", byokEnabled: false });
+    (vi.mocked(jwt.verify) as any).mockReturnValue({ chatId: "chat-1", sessionId: "sess-2", jobToken: "tok", byokEnabled: false });
 
     const customNormalizer = (decoded: any, jobToken: string) => ({
       chatId: decoded.chatId,

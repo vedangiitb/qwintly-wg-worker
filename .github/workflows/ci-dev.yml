@@ -44,7 +44,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Type Check (TypeScript)
-        run: npx tsc --noEmit --ignore-scripts
+        run: npm run typecheck
 
       - name: Dependency Vulnerability Audit
         run: npm audit --audit-level=high
