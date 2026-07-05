@@ -35,13 +35,13 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run Linter
         run: npm run lint
 
       - name: Type Check (TypeScript)
-        run: npx tsc --noEmit
+        run: npx tsc --noEmit --ignore-scripts
 
       - name: Dependency Vulnerability Audit
         run: npm audit --audit-level=high
