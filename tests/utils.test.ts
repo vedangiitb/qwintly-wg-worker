@@ -53,6 +53,16 @@ describe("extractBearerToken", () => {
     expect(mockRequest.header).toHaveBeenCalledWith("authorization");
   });
 
+  it("should extract token from headers field if header method is missing", () => {
+    const mockRequest = {
+      headers: { authorization: "Bearer header-token" },
+    } as unknown as Request;
+    const mockResponse = {} as unknown as Response;
+
+    const token = extractBearerToken(mockRequest, mockResponse);
+    expect(token).toBe("header-token");
+  });
+
   it("should return null and set 401 when authorization header is missing Bearer prefix", () => {
     const mockRequest = {
       header: vi.fn().mockReturnValue("Basic user:pass"),

@@ -12,4 +12,18 @@ describe('configuration', () => {
     expect(config.supabase.url).toBe('https://mock-supabase.co');
     expect(config.supabase.secretKey).toBe('mock-secret-key');
   });
+
+  it('should fall back to defaults when PORT and REGION env variables are missing', () => {
+    const originalPort = process.env.PORT;
+    const originalRegion = process.env.REGION;
+    delete process.env.PORT;
+    delete process.env.REGION;
+
+    const config = configuration();
+    expect(config.port).toBe(8080);
+    expect(config.gcp.region).toBe('asia-south1');
+
+    process.env.PORT = originalPort;
+    process.env.REGION = originalRegion;
+  });
 });

@@ -57,4 +57,28 @@ describe('QwintlyCoreService', () => {
 
     expect(coreInstance).toBeDefined();
   });
+
+  it('should throw an error if configuration parameters are missing', async () => {
+    const badModule: TestingModule = await Test.createTestingModule({
+      providers: [
+        QwintlyCoreService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: vi.fn(() => null),
+          },
+        },
+      ],
+    }).compile();
+
+    const badService = badModule.get<QwintlyCoreService>(QwintlyCoreService);
+    const ctx = {
+      chatId: 'chat-123',
+      sessionId: 'sess-456',
+      workspace: 'work-path',
+      step: 'initiating',
+    };
+
+    expect(() => badService.getQwintlyCore(ctx)).toThrow('Supabase or Upstash credentials are not fully configured');
+  });
 });

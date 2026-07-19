@@ -96,6 +96,140 @@ describe('GeneratePayloadDto Validation', () => {
 
     expect(() => plainToInstance(GeneratePayloadDto, raw).byokEnabled).toThrow('Invalid byokEnabled value');
   });
+
+  it('should validate and normalize generate payload string boolean false', async () => {
+    const raw = {
+      chatId: 'chat-1',
+      planId: 'plan-2',
+      userId: 'user-3',
+      requestType: 'new',
+      provider: 'openai',
+      model: 'gpt-4',
+      sessionId: 'sess-5',
+      jobToken: 'mock-token',
+      byokEnabled: 'false',
+    };
+    const dto = plainToInstance(GeneratePayloadDto, raw);
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0);
+    expect(dto.byokEnabled).toBe(false);
+  });
+
+  it('should throw for invalid byokEnabled type on generate payload', () => {
+    const raw = {
+      chatId: 'chat-1',
+      planId: 'plan-2',
+      userId: 'user-3',
+      requestType: 'new',
+      provider: 'openai',
+      model: 'gpt-4',
+      sessionId: 'sess-5',
+      jobToken: 'mock-token',
+      byokEnabled: 12345,
+    };
+    expect(() => plainToInstance(GeneratePayloadDto, raw).byokEnabled).toThrow('Invalid byokEnabled value');
+  });
+
+  it('should validate and normalize deployer payload string boolean', async () => {
+    const raw = {
+      chatId: 'chat-1',
+      planId: 'plan-2',
+      userId: 'user-3',
+      model: 'gpt-4',
+      provider: 'openai',
+      sessionId: 'sess-5',
+      snapshotId: 'snap-6',
+      jobToken: 'mock-token',
+      byokEnabled: 'true',
+    };
+    const dto = plainToInstance(DeployPayloadDto, raw);
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0);
+    expect(dto.byokEnabled).toBe(true);
+  });
+
+  it('should validate and normalize deployer payload string boolean false', async () => {
+    const raw = {
+      chatId: 'chat-1',
+      planId: 'plan-2',
+      userId: 'user-3',
+      model: 'gpt-4',
+      provider: 'openai',
+      sessionId: 'sess-5',
+      snapshotId: 'snap-6',
+      jobToken: 'mock-token',
+      byokEnabled: 'false',
+    };
+    const dto = plainToInstance(DeployPayloadDto, raw);
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0);
+    expect(dto.byokEnabled).toBe(false);
+  });
+
+  it('should throw for invalid byokEnabled string values on deployer payload', () => {
+    const raw = {
+      chatId: 'chat-1',
+      planId: 'plan-2',
+      userId: 'user-3',
+      model: 'gpt-4',
+      provider: 'openai',
+      sessionId: 'sess-5',
+      snapshotId: 'snap-6',
+      jobToken: 'mock-token',
+      byokEnabled: 'invalid-boolean',
+    };
+    expect(() => plainToInstance(DeployPayloadDto, raw).byokEnabled).toThrow('Invalid byokEnabled value');
+  });
+
+  it('should throw for invalid byokEnabled type on deployer payload', () => {
+    const raw = {
+      chatId: 'chat-1',
+      planId: 'plan-2',
+      userId: 'user-3',
+      model: 'gpt-4',
+      provider: 'openai',
+      sessionId: 'sess-5',
+      snapshotId: 'snap-6',
+      jobToken: 'mock-token',
+      byokEnabled: 12345,
+    };
+    expect(() => plainToInstance(DeployPayloadDto, raw).byokEnabled).toThrow('Invalid byokEnabled value');
+  });
+
+  it('should hit transform fallback branch when non-strings are passed to GeneratePayloadDto', async () => {
+    const raw = {
+      chatId: 123,
+      planId: 456,
+      userId: 789,
+      requestType: 'new',
+      provider: 111,
+      model: 222,
+      prevSessionId: 333,
+      sessionId: 444,
+      jobToken: 555,
+      byokEnabled: true,
+    };
+    const dto = plainToInstance(GeneratePayloadDto, raw);
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('should hit transform fallback branch when non-strings are passed to DeployPayloadDto', async () => {
+    const raw = {
+      chatId: 123,
+      planId: 456,
+      userId: 789,
+      model: 111,
+      provider: 222,
+      sessionId: 333,
+      snapshotId: 444,
+      jobToken: 555,
+      byokEnabled: false,
+    };
+    const dto = plainToInstance(DeployPayloadDto, raw);
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+  });
 });
 
 describe('PubsubService verifyAndValidatePayload', () => {
@@ -154,6 +288,21 @@ describe('PubsubService verifyAndValidatePayload', () => {
 
   it('should throw if jobToken is missing', async () => {
     await expect(service.verifyAndValidatePayload(JSON.stringify({}), GeneratePayloadDto)).rejects.toThrow('Missing jobToken');
+  });
+
+  it('should throw if publishSecret config is not set', async () => {
+    mockConfigService.get.mockReturnValue(undefined);
+    (vi.mocked(jwt.verify) as any).mockReturnValue({ chatId: '123' });
+    const rawPayload = JSON.stringify({ jobToken: 'mock-token' });
+    await expect(service.verifyAndValidatePayload(rawPayload, GeneratePayloadDto)).rejects.toThrow('PUBLISH_SECRET config is not set');
+  });
+
+  it('should throw if validation fails', async () => {
+    (vi.mocked(jwt.verify) as any).mockReturnValue({
+      chatId: '', // Invalid empty value
+    });
+    const rawPayload = JSON.stringify({ jobToken: 'mock-token' });
+    await expect(service.verifyAndValidatePayload(rawPayload, GeneratePayloadDto)).rejects.toThrow('Validation failed');
   });
 });
 
@@ -220,6 +369,33 @@ describe('PubsubAuthGuard', () => {
       audience: 'https://mock-audience.co/pubsub/generate',
     });
   });
+
+  it('should throw error if token verification fails', async () => {
+    mockAuthClient.verifyIdToken.mockRejectedValue(new Error('Invalid token'));
+    const mockContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          path: '/pubsub/generate',
+          headers: { authorization: 'Bearer invalid-token' },
+        }),
+      }),
+    } as any;
+
+    await expect(guard.canActivate(mockContext)).rejects.toThrow('Invalid ID token');
+  });
+
+  it('should throw error if authorization header is entirely missing', async () => {
+    const mockContext = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          path: '/pubsub/generate',
+          headers: {}, // authorization is undefined
+        }),
+      }),
+    } as any;
+
+    await expect(guard.canActivate(mockContext)).rejects.toThrow('Missing bearer token');
+  });
 });
 
 describe('PubsubController', () => {
@@ -233,6 +409,7 @@ describe('PubsubController', () => {
     mockPubsubService = {
       verifyAndValidatePayload: vi.fn(),
       processGenerateJob: vi.fn(),
+      processDeployJob: vi.fn(),
       finishDeploymentSession: vi.fn(),
     };
 
@@ -289,5 +466,138 @@ describe('PubsubController', () => {
     await controller.handleGenerate({} as any, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(204);
     expect(mockPubsubService.processGenerateJob).toHaveBeenCalled();
+  });
+
+  it('should handle generate job failure and return 204', async () => {
+    mockPubsubService.verifyAndValidatePayload.mockResolvedValue({ chatId: '1', sessionId: '2', jobToken: 'tok' });
+    const mockStreamLog = vi.fn().mockResolvedValue(undefined);
+    mockQwintlyCoreService.getQwintlyCore.mockReturnValue({
+      streamLog: mockStreamLog,
+    });
+    mockPubsubService.processGenerateJob.mockRejectedValue(new Error('Job Failure'));
+    vi.spyOn(decodeUtils, 'decodePubsubMessageData').mockReturnValue('dec-data');
+
+    const sendMock = vi.fn();
+    const mockRes = {
+      status: vi.fn().mockReturnValue({ send: sendMock }),
+    } as any;
+
+    await controller.handleGenerate({} as any, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(204);
+    expect(mockStreamLog).toHaveBeenCalledWith('Failed to start job', 'generation_failed');
+    expect(mockPubsubService.finishDeploymentSession).toHaveBeenCalledWith('2', false);
+  });
+
+  it('should run deploy job successfully and return 204', async () => {
+    mockPubsubService.verifyAndValidatePayload.mockResolvedValue({ chatId: '1', sessionId: '2', jobToken: 'tok' });
+    const mockStreamLog = vi.fn();
+    mockQwintlyCoreService.getQwintlyCore.mockReturnValue({
+      streamLog: mockStreamLog,
+    });
+    mockPubsubService.processDeployJob.mockResolvedValue(undefined);
+    vi.spyOn(decodeUtils, 'decodePubsubMessageData').mockReturnValue('dec-data');
+
+    const sendMock = vi.fn();
+    const mockRes = {
+      status: vi.fn().mockReturnValue({ send: sendMock }),
+    } as any;
+
+    await controller.handleDeploy({} as any, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(204);
+    expect(mockPubsubService.processDeployJob).toHaveBeenCalled();
+  });
+
+  it('should return 204 on deploy if validation fails', async () => {
+    mockPubsubService.verifyAndValidatePayload.mockRejectedValue(new Error('Validation Error'));
+    vi.spyOn(decodeUtils, 'decodePubsubMessageData').mockReturnValue('dec-data');
+
+    const sendMock = vi.fn();
+    const statusMock = vi.fn().mockReturnValue({ send: sendMock });
+    const mockRes = { status: statusMock } as any;
+
+    await controller.handleDeploy({} as any, mockRes);
+    expect(statusMock).toHaveBeenCalledWith(204);
+    expect(sendMock).toHaveBeenCalledWith('Invalid payload');
+  });
+
+  it('should return 500 on deploy if Qwintly Core construction fails', async () => {
+    mockPubsubService.verifyAndValidatePayload.mockResolvedValue({});
+    mockQwintlyCoreService.getQwintlyCore.mockImplementation(() => {
+      throw new Error('Core Init Error');
+    });
+    vi.spyOn(decodeUtils, 'decodePubsubMessageData').mockReturnValue('dec-data');
+
+    const sendMock = vi.fn();
+    const statusMock = vi.fn().mockReturnValue({ send: sendMock });
+    const mockRes = { status: statusMock } as any;
+
+    await controller.handleDeploy({} as any, mockRes);
+    expect(statusMock).toHaveBeenCalledWith(500);
+    expect(sendMock).toHaveBeenCalledWith('Failed to start session');
+  });
+
+  it('should handle deploy job failure and return 204', async () => {
+    mockPubsubService.verifyAndValidatePayload.mockResolvedValue({ chatId: '1', sessionId: '2', jobToken: 'tok' });
+    const mockStreamLog = vi.fn().mockResolvedValue(undefined);
+    mockQwintlyCoreService.getQwintlyCore.mockReturnValue({
+      streamLog: mockStreamLog,
+    });
+    mockPubsubService.processDeployJob.mockRejectedValue(new Error('Job Failure'));
+    vi.spyOn(decodeUtils, 'decodePubsubMessageData').mockReturnValue('dec-data');
+
+    const sendMock = vi.fn();
+    const mockRes = {
+      status: vi.fn().mockReturnValue({ send: sendMock }),
+    } as any;
+
+    await controller.handleDeploy({} as any, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(204);
+    expect(mockStreamLog).toHaveBeenCalledWith('Failed to start job', 'generation_failed');
+    expect(mockPubsubService.finishDeploymentSession).toHaveBeenCalledWith('2', false);
+  });
+});
+
+describe('PubsubService Job Execution', () => {
+  let service: PubsubService;
+  let mockBuilderJobService: any;
+  let mockDeployerJobService: any;
+  let mockStatusService: any;
+
+  beforeEach(async () => {
+    mockBuilderJobService = { runBuilderJob: vi.fn().mockResolvedValue(undefined) };
+    mockDeployerJobService = { runDeployerJob: vi.fn().mockResolvedValue(undefined) };
+    mockStatusService = { finishSession: vi.fn().mockResolvedValue(undefined) };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PubsubService,
+        { provide: ConfigService, useValue: {} },
+        { provide: QwintlyCoreService, useValue: {} },
+        { provide: StatusService, useValue: mockStatusService },
+        { provide: BuilderJobService, useValue: mockBuilderJobService },
+        { provide: DeployerJobService, useValue: mockDeployerJobService },
+      ],
+    }).compile();
+
+    service = module.get<PubsubService>(PubsubService);
+  });
+
+  it('should trigger builder job', async () => {
+    const payload = { chatId: 'c1', sessionId: 's1', jobToken: 't1' } as any;
+    const mockCore = { streamLog: { bind: vi.fn().mockReturnValue(vi.fn()) } } as any;
+    await service.processGenerateJob(payload, mockCore);
+    expect(mockBuilderJobService.runBuilderJob).toHaveBeenCalled();
+  });
+
+  it('should trigger deployer job', async () => {
+    const payload = { chatId: 'c1', sessionId: 's1', jobToken: 't1' } as any;
+    const mockCore = { streamLog: { bind: vi.fn().mockReturnValue(vi.fn()) } } as any;
+    await service.processDeployJob(payload, mockCore);
+    expect(mockDeployerJobService.runDeployerJob).toHaveBeenCalled();
+  });
+
+  it('should call status finish session', async () => {
+    await service.finishDeploymentSession('s1', true);
+    expect(mockStatusService.finishSession).toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@ export function normalizeTimestamp(ts: Timestamp): string {
   // ITimestamp case
   if (ts.seconds && ts.nanos) {
     const millis =
-      Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1e6);
+      Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos) / 1e6);
     return new Date(millis).toISOString();
   }
 
