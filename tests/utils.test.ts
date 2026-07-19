@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { decodePubsubMessageData } from "../utils/decodePubsubMessageData.utils.js";
-import { extractBearerToken } from "../utils/extractBearerToken.utils.js";
-import { normalizeTimestamp } from "../utils/normalizeTimeStamp.js";
+import { decodePubsubMessageData } from "../src/common/utils/pubsub.utils.js";
+import { extractBearerToken } from "../src/common/utils/extract-bearer-token.utils.js";
+import { normalizeTimestamp } from "../src/common/utils/timestamp.utils.js";
 import type { Request, Response } from "express";
 
 describe("decodePubsubMessageData", () => {
@@ -51,6 +51,16 @@ describe("extractBearerToken", () => {
     const token = extractBearerToken(mockRequest, mockResponse);
     expect(token).toBe("my-token-123");
     expect(mockRequest.header).toHaveBeenCalledWith("authorization");
+  });
+
+  it("should extract token from headers field if header method is missing", () => {
+    const mockRequest = {
+      headers: { authorization: "Bearer header-token" },
+    } as unknown as Request;
+    const mockResponse = {} as unknown as Response;
+
+    const token = extractBearerToken(mockRequest, mockResponse);
+    expect(token).toBe("header-token");
   });
 
   it("should return null and set 401 when authorization header is missing Bearer prefix", () => {

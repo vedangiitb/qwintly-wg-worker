@@ -1,21 +1,29 @@
-import { describe, it, expect } from "vitest";
-import { createWorkerContext, getWorkerContext } from "../worker/workerContext.js";
+import { describe, it, expect } from 'vitest';
+import configuration from '../src/config/configuration.js';
 
-describe("workerContext", () => {
-  it("should create worker context with values from env", () => {
-    const ctx = createWorkerContext();
-    expect(ctx.port).toBe("8080");
-    expect(ctx.builderJob).toBe("qwintly-builder");
-    expect(ctx.builderJobResource).toBe("projects/mock-project/locations/asia-south1/jobs/qwintly-builder");
-    expect(ctx.deployerJob).toBe("qwintly-deployer");
-    expect(ctx.deployerJobResource).toBe("projects/mock-project/locations/asia-south1/jobs/qwintly-deployer");
-    expect(ctx.supabaseSecretKey).toBe("mock-secret-key");
-    expect(ctx.supabaseUrl).toBe("https://mock-supabase.co");
+describe('configuration', () => {
+  it('should load config from environment', () => {
+    const config = configuration();
+    expect(config.port).toBe(8080);
+    expect(config.gcp.projectId).toBe('mock-project');
+    expect(config.gcp.region).toBe('asia-south1');
+    expect(config.gcp.builderJobName).toBe('qwintly-builder');
+    expect(config.gcp.deployerJobName).toBe('qwintly-deployer');
+    expect(config.supabase.url).toBe('https://mock-supabase.co');
+    expect(config.supabase.secretKey).toBe('mock-secret-key');
   });
 
-  it("should return cached/same context on subsequent getWorkerContext calls", () => {
-    const ctx1 = getWorkerContext();
-    const ctx2 = getWorkerContext();
-    expect(ctx1).toBe(ctx2);
+  it('should fall back to defaults when PORT and REGION env variables are missing', () => {
+    const originalPort = process.env.PORT;
+    const originalRegion = process.env.REGION;
+    delete process.env.PORT;
+    delete process.env.REGION;
+
+    const config = configuration();
+    expect(config.port).toBe(8080);
+    expect(config.gcp.region).toBe('asia-south1');
+
+    process.env.PORT = originalPort;
+    process.env.REGION = originalRegion;
   });
 });
