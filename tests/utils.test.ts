@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { decodePubsubMessageData } from "../utils/decodePubsubMessageData.utils.js";
-import { extractBearerToken } from "../utils/extractBearerToken.utils.js";
-import { normalizeTimestamp } from "../utils/normalizeTimeStamp.js";
+import { decodePubsubMessageData } from "../src/common/utils/pubsub.utils.js";
+import { extractBearerToken } from "../src/common/utils/extract-bearer-token.utils.js";
+import { normalizeTimestamp } from "../src/common/utils/timestamp.utils.js";
 import type { Request, Response } from "express";
 
 describe("decodePubsubMessageData", () => {

@@ -1,147 +1,161 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { runCloudRunJob } from "../service/jobs/runCloudRunJob.js";
-import { runBuilderJob } from "../service/jobs/builder.job.js";
-import { runDeployerJob } from "../service/jobs/deployer.job.js";
-import { jobsClient } from "../config/jobsClient.config.js";
+import { Test, TestingModule } from '@nestjs/testing';
+import { JobsClient } from '@google-cloud/run';
+import { ConfigService } from '@nestjs/config';
+import { JobsService } from '../src/jobs/jobs.service.js';
+import { BuilderJobService } from '../src/jobs/builder-job.service.js';
+import { DeployerJobService } from '../src/jobs/deployer-job.service.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock jobsClient config
-vi.mock("../config/jobsClient.config.js", () => {
-  return {
-    jobsClient: {
-      runJob: vi.fn(),
-    },
-  };
-});
+describe('JobsModule Services', () => {
+  let jobsService: JobsService;
+  let builderJobService: BuilderJobService;
+  let deployerJobService: DeployerJobService;
+  let mockJobsClient: { runJob: any };
+  let mockConfigService: any;
 
-describe("runCloudRunJob", () => {
   const mockParams = {
-    sessionId: "session-123",
-    jobToken: "token-abc",
-    chatId: "chat-456",
-    ctx: {
-      builderJobResource: "projects/mock/locations/asia/jobs/builder",
-      deployerJobResource: "projects/mock/locations/asia/jobs/deployer",
-    },
+    sessionId: 'session-123',
+    jobToken: 'token-abc',
+    chatId: 'chat-456',
   } as any;
 
   const mockLogger = vi.fn().mockResolvedValue(undefined);
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-  });
 
-  it("should successfully run Cloud Run job and log progress", async () => {
-    vi.mocked(jobsClient.runJob).mockResolvedValue({} as any);
-
-    const options = {
-      params: mockParams,
-      jobResource: "my-job-resource",
-      executionSuffix: "suffix",
-      pipelineLabel: "label",
-      messages: {
-        starting: "starting-msg",
-        started: "started-msg",
-        failedPrefix: "failed-msg",
-      },
-      eventTypes: {
-        STEP_STARTED: "step_started",
-        GENERATION_FAILED: "generation_failed",
-      },
-      logger: mockLogger,
+    mockJobsClient = {
+      runJob: vi.fn(),
     };
 
-    await expect(runCloudRunJob(options)).resolves.toBeUndefined();
+    mockConfigService = {
+      get: vi.fn((key: string) => {
+        if (key === 'gcp.projectId') return 'mock-project';
+        if (key === 'gcp.region') return 'asia-south1';
+        if (key === 'gcp.builderJobName') return 'qwintly-builder';
+        if (key === 'gcp.deployerJobName') return 'qwintly-deployer';
+        return null;
+      }),
+    };
 
-    expect(mockLogger).toHaveBeenCalledWith("starting-msg", "step_started");
-    expect(jobsClient.runJob).toHaveBeenCalledWith({
-      name: "my-job-resource",
-      executionSuffix: "suffix",
-      overrides: {
-        labels: { pipeline: "label" },
-        containerOverrides: [
-          {
-            env: [
-              { name: "SESSION_ID", value: "session-123" },
-              { name: "JOB_TOKEN", value: "token-abc" },
-            ],
-          },
-        ],
-      },
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        JobsService,
+        BuilderJobService,
+        DeployerJobService,
+        {
+          provide: JobsClient,
+          useValue: mockJobsClient,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
+    }).compile();
+
+    jobsService = module.get<JobsService>(JobsService);
+    builderJobService = module.get<BuilderJobService>(BuilderJobService);
+    deployerJobService = module.get<DeployerJobService>(DeployerJobService);
+  });
+
+  describe('runCloudRunJob', () => {
+    it('should successfully run Cloud Run job and log progress', async () => {
+      mockJobsClient.runJob.mockResolvedValue({} as any);
+
+      const options = {
+        params: mockParams,
+        jobResource: 'my-job-resource',
+        executionSuffix: 'suffix',
+        pipelineLabel: 'label',
+        messages: {
+          starting: 'starting-msg',
+          started: 'started-msg',
+          failedPrefix: 'failed-msg',
+        },
+        eventTypes: {
+          STEP_STARTED: 'step_started',
+          GENERATION_FAILED: 'generation_failed',
+        },
+        logger: mockLogger,
+      };
+
+      await expect(jobsService.runCloudRunJob(options)).resolves.toBeUndefined();
+
+      expect(mockLogger).toHaveBeenCalledWith('starting-msg', 'step_started');
+      expect(mockJobsClient.runJob).toHaveBeenCalledWith({
+        name: 'my-job-resource',
+        executionSuffix: 'suffix',
+        overrides: {
+          labels: { pipeline: 'label' },
+          containerOverrides: [
+            {
+              env: [
+                { name: 'SESSION_ID', value: 'session-123' },
+                { name: 'JOB_TOKEN', value: 'token-abc' },
+              ],
+            },
+          ],
+        },
+      });
+      expect(mockLogger).toHaveBeenCalledWith('started-msg', 'step_started');
     });
-    expect(mockLogger).toHaveBeenCalledWith("started-msg", "step_started");
+
+    it('should log failure and rethrow if jobsClient.runJob throws error', async () => {
+      const error = new Error('GCP connection error');
+      mockJobsClient.runJob.mockRejectedValue(error);
+
+      const options = {
+        params: mockParams,
+        jobResource: 'my-job-resource',
+        messages: {
+          starting: 'starting-msg',
+          started: 'started-msg',
+          failedPrefix: 'failed-msg',
+        },
+        eventTypes: {
+          STEP_STARTED: 'step_started',
+          GENERATION_FAILED: 'generation_failed',
+        },
+        logger: mockLogger,
+      };
+
+      await expect(jobsService.runCloudRunJob(options)).rejects.toThrow('GCP connection error');
+
+      expect(mockLogger).toHaveBeenCalledWith('starting-msg', 'step_started');
+      expect(mockLogger).toHaveBeenCalledWith('failed-msg: GCP connection error', 'generation_failed');
+    });
   });
 
-  it("should log failure and rethrow if jobsClient.runJob throws error", async () => {
-    const error = new Error("GCP connection error");
-    vi.mocked(jobsClient.runJob).mockRejectedValue(error);
+  describe('runBuilderJob', () => {
+    it('should delegate to runCloudRunJob correctly with builder resource', async () => {
+      mockJobsClient.runJob.mockResolvedValue({} as any);
 
-    const options = {
-      params: mockParams,
-      jobResource: "my-job-resource",
-      messages: {
-        starting: "starting-msg",
-        started: "started-msg",
-        failedPrefix: "failed-msg",
-      },
-      eventTypes: {
-        STEP_STARTED: "step_started",
-        GENERATION_FAILED: "generation_failed",
-      },
-      logger: mockLogger,
-    };
+      await builderJobService.runBuilderJob(mockParams, mockLogger);
 
-    await expect(runCloudRunJob(options)).rejects.toThrow("GCP connection error");
-
-    expect(mockLogger).toHaveBeenCalledWith("starting-msg", "step_started");
-    expect(mockLogger).toHaveBeenCalledWith("failed-msg: GCP connection error", "generation_failed");
+      expect(mockJobsClient.runJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'projects/mock-project/locations/asia-south1/jobs/qwintly-builder',
+          overrides: expect.objectContaining({
+            labels: { pipeline: 'builder' },
+          }),
+        })
+      );
+    });
   });
-});
 
-describe("runBuilderJob", () => {
-  it("should delegate to runCloudRunJob correctly", async () => {
-    vi.mocked(jobsClient.runJob).mockResolvedValue({} as any);
-    const mockLogger = vi.fn().mockResolvedValue(undefined);
-    const mockParams = {
-      sessionId: "session-123",
-      jobToken: "token-abc",
-      ctx: {
-        builderJobResource: "builder-resource-123",
-      },
-    } as any;
+  describe('runDeployerJob', () => {
+    it('should delegate to runCloudRunJob correctly with deployer resource', async () => {
+      mockJobsClient.runJob.mockResolvedValue({} as any);
 
-    await runBuilderJob(mockParams, mockLogger);
+      await deployerJobService.runDeployerJob(mockParams, mockLogger);
 
-    expect(jobsClient.runJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "builder-resource-123",
-        overrides: expect.objectContaining({
-          labels: { pipeline: "builder" },
-        }),
-      })
-    );
-  });
-});
-
-describe("runDeployerJob", () => {
-  it("should delegate to runCloudRunJob correctly", async () => {
-    vi.mocked(jobsClient.runJob).mockResolvedValue({} as any);
-    const mockLogger = vi.fn().mockResolvedValue(undefined);
-    const mockParams = {
-      chatId: "chat-456",
-      sessionId: "session-123",
-      jobToken: "token-abc",
-      ctx: {
-        deployerJobResource: "deployer-resource-123",
-      },
-    } as any;
-
-    await runDeployerJob(mockParams, mockLogger);
-
-    expect(jobsClient.runJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "deployer-resource-123",
-        executionSuffix: "chat-456",
-      })
-    );
+      expect(mockJobsClient.runJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'projects/mock-project/locations/asia-south1/jobs/qwintly-deployer',
+          executionSuffix: 'chat-456',
+        })
+      );
+    });
   });
 });
