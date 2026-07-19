@@ -20,7 +20,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>("port") || 8080;
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`Worker running on ${port}`);
 }
-await bootstrap();
+bootstrap();
